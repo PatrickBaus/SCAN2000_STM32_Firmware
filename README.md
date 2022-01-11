@@ -32,5 +32,4 @@ Keithley SCAN2000 Hardware: https://github.com/PatrickBaus/SCAN2000
 
 License
 -------
-This work is released under the Cern OHL v.1.2
-See www.ohwr.org/licenses/cern-ohl/v1.2 or the included LICENSE file for more information.
+This project is licensed under the GPL v3 license - see the [LICENSE](LICENSE) file for details
