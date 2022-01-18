@@ -14,7 +14,7 @@ The source code is based on the project by [George Christidis](https://github.co
 To flash the SMT32G0, I use an ST-Link programmer along with [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html).
 
 To flash the firmware to the microcontroller do the following:
-1. Compile the code using the Makefile. In Linux type *make*.
+1. Compile the code using the Makefile. In Linux type *make*. Alternatively use the compiled firware in the [/build](/build) folder.
 2. Power the MCU via the 5V pin. It should draw about 40 mA @ 5V and the *Power* led should be lit.
 3. Connect the ST-link programmer via the header and the adapter board.
 4. Open STM32CubeProgrammer and press connect
