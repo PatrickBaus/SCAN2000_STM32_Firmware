@@ -336,33 +336,35 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
         if (receivedSequence != 0x0) {
             // process the command
             uint8_t counter;
-            for (counter = 0; counter<20; counter++) {
+            for (counter = 0; counter < 20; counter++) {
+                // Even clock pulses -> turn relays off
                 if ((receivedSequence & ((uint64_t)1 << (2 * counter))) != 0) {
-                    // turn off channel (reset pin -> LOW)
+                    // turn off channel (GPIO_PIN_RESET -> LOW)
                     HAL_GPIO_WritePin(
                         GPIOsequence[channelSequence[counter]-1],
                         PinSequence[channelSequence[counter]-1],
                         GPIO_PIN_RESET
                     );
                     numberOfChannelsActive--;
-                    channelState &= ~((long)1<<(channelSequence[counter]-1));
+                    channelState &= ~((long)1 << (channelSequence[counter] - 1));
                     sprintf((char *)uartsinglemessage, "CH%d OFF\n", channelSequence[counter]);
                     strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                    if (numberOfChannelsActive<0) {
+                    if (numberOfChannelsActive < 0) {
                         sprintf((char *)uartsinglemessage, "Warning too many ssr off requests\n");
                         strcat((char *)uartbuffer, (char *)uartsinglemessage);
                         numberOfChannelsActive = 0;
                      }
                 }
+                // Odd clock pulses -> turn relays on
                 if ((receivedSequence & ((uint64_t)1 << (2 * counter + 1))) != 0) {
-                    // turn on channel (set pin -> HIGH)
+                    // turn on channel (GPIO_PIN_SET -> HIGH)
                     if (numberOfChannelsActive < MAXALLOWEDONCHANNELS) {
                         HAL_GPIO_WritePin(
-                            GPIOsequence[channelSequence[counter]-1], PinSequence[channelSequence[counter]-1],
+                            GPIOsequence[channelSequence[counter] - 1], PinSequence[channelSequence[counter] - 1],
                             GPIO_PIN_SET
                         );
                         numberOfChannelsActive++;
-                        channelState |= (1<<(channelSequence[counter]-1));
+                        channelState |= (1 << (channelSequence[counter] - 1));
                         sprintf((char *)uartsinglemessage, "CH%d ON\n", channelSequence[counter]);
                         strcat((char *)uartbuffer, (char *)uartsinglemessage);
                     }
@@ -373,7 +375,7 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
                 }
             }
             // channel 21
-            if ((channelState & 0xFFC00)==0) {
+            if ((channelState & 0xFFC00) == 0) {
                 // If channels 11 to 20 not used, turn off both bus2 switches
                 channel21Req = CH21REQOFF;
             }
