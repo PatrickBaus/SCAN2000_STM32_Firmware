@@ -20,9 +20,9 @@ TARGET = Scan2000STM32
 # building variables
 ######################################
 # debug build?
-DEBUG = 1
+DEBUG = 0
 # optimization
-OPT = -Og
+OPT = -O3
 
 
 #######################################

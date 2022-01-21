@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -33,14 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MAXALLOWEDONCHANNELS 6
-#define CH21STATEOFF 0
-#define CH21STATEOUT 1
-#define CH21STATESENSE 2
-#define CH21REQOFF 0
-#define CH21REQOUT 1
-#define CH21REQSENSE 2
-#define CH21NOREQ 3
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,18 +47,17 @@ UART_HandleTypeDef huart4;
 DMA_HandleTypeDef hdma_usart4_tx;
 
 /* USER CODE BEGIN PV */
+uint32_t timeSinceLastClock = 0;
 uint64_t receivedSequence = 0;
 uint8_t receivedCounter = 0;
-int8_t numberOfChannelsActive = 0;
 uint32_t channelState = 0;
-uint8_t channel21State = CH21STATEOFF;
-uint8_t channel21Req = CH21NOREQ;
-uint8_t channel21DMMCommand = CH21REQOFF;
 uint8_t uartsinglemessage[71], uartbuffer[2000], uartTransmitBuffer[2000];
 
-GPIO_TypeDef* GPIOsequence[] = {GPIOA, GPIOA, GPIOA, GPIOA, GPIOB, GPIOB, GPIOB, GPIOB, GPIOB, GPIOB, GPIOA, GPIOB, GPIOB, GPIOB, GPIOA, GPIOA, GPIOA, GPIOA, GPIOA, GPIOA};
+GPIO_TypeDef* GPIOsequence[] = {CH1_GPIO_Port, CH2_GPIO_Port, CH3_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH8_GPIO_Port, CH9_GPIO_Port, CH10_GPIO_Port, CH11_GPIO_Port, CH12_GPIO_Port, CH13_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH18_GPIO_Port, CH19_GPIO_Port, CH12_GPIO_Port};
 uint32_t PinSequence[] = {CH1_Pin, CH2_Pin, CH3_Pin, CH4_Pin, CH5_Pin, CH6_Pin, CH7_Pin, CH8_Pin, CH9_Pin, CH10_Pin, CH11_Pin, CH12_Pin, CH13_Pin, CH14_Pin, CH15_Pin, CH16_Pin, CH17_Pin, CH18_Pin, CH19_Pin, CH20_Pin};
-uint8_t channelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21};
+uint8_t scan2000_20ChannelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21, 22};    // CH11..CH20, CH1..CH10, Bank 2 to OUT, Bank 2 to 4W
+uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12};      // CH1..CH10, 4W
+uint8_t scan2000ChannelOnSequence[] = {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11};      // CH1..CH10, 4W
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -120,20 +113,26 @@ int main(void)
   MX_DMA_Init();
   MX_USART4_UART_Init();
   /* USER CODE BEGIN 2 */
-    //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
-    HAL_GPIO_WritePin(GPIOA, LED_Pin, GPIO_PIN_RESET);  // turn on the LED, the logic is inverted
-    printf("\n===============\nBooting\n");
-    for (uint8_t i=0; i < 6; i++) {
-        HAL_Delay(100); // sleep for 500 ms
-        HAL_GPIO_TogglePin(GPIOA, LED_Pin);
-    }
-    HAL_GPIO_WritePin(GPIOA, LED_Pin, GPIO_PIN_SET);
+  //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);  // turn on the LED, the logic is inverted
+  printf("\n===============\nBooting\n");
+  for (uint8_t i=0; i < 6; i++) {
+    HAL_Delay(100); // sleep for 100 ms
+    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+  }
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    uint32_t now = HAL_GetTick();
+    if (HAL_GetTick() - timeSinceLastClock > 1) {
+        receivedCounter = 0;
+        receivedSequence = 0;
+        timeSinceLastClock = now;
+    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -319,120 +318,153 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
-    if(GPIO_Pin == Clock_Pin) {
-        receivedSequence = receivedSequence << 1;
-        receivedSequence |= HAL_GPIO_ReadPin(GPIOB, Bus_Sense_Pin);
-        receivedCounter++;
+/*
+ * The K2002 clocks out commands at a 2.8 ms interval
+ */
+int decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
+    // Check always high bits
+    if ((command & SCAN_2000_ALWAYS_HIGH_BITS) != SCAN_2000_ALWAYS_HIGH_BITS) {
+        return 1;
     }
-    else if(GPIO_Pin == Strobe_Pin) {
-        HAL_GPIO_TogglePin(GPIOA, LED_Pin);
-        uartbuffer[0] = '\0';
+    // Remove the bits, that are always high
+    command &= ~SCAN_2000_ALWAYS_HIGH_BITS;
+    *relaySetRegister = 0x0000;
+    *relayUnsetRegister = 0x0000;
 
-        if (receivedCounter != 48)	{
-            sprintf((char *)uartsinglemessage, "Warning: 48 clocks not received, %d\n", receivedCounter);
+    // There is no need to run the loop, if there is nothing to do. Every second command
+    // only contains the bits, that are always high. We can ignore those commands.
+    if (command != 0x00000000) {
+        // 10 channels + 1 4W relay
+        for (uint8_t i = 0; i < 11; i++) {
+            // Compile a list of channels, that are to be turned on
+            // The scanner card supports up to 20 channels on two separate buses (CH1-CH10 and CH11-CH20),
+            // but the DMM might only support 10 channels.
+            // We therefore use channels CH1-CH5 and CH11-CH15 on the scanner card and skip CH6-CH10,
+            // because CH1-CH5 and CH6-CH10 are connected to the same bus. This is why we use the
+            // i + (i/5) * 5 term to skip CH6-CH10.
+            // The MSB is the 4W relay, the LSB is CH1
+
+            *relaySetRegister |= !!(command & (1 << scan2000ChannelOnSequence[i])) << (i + (i / 5) * 5);
+            // The list of channels, that are to tbe turned off
+            *relayUnsetRegister |= !!(command & (1 << scan2000ChannelOffSequence[i])) << (i + (i / 5) * 5);
+        }
+    }
+    // Always unset CH6-CH10 and CH-16-CH20
+    // There is no need to not set the relaySetRegister, because unsetting a relay takes precidence.
+    *relayUnsetRegister |= 0b11111000001111100000;
+
+    return 0;
+}
+
+int decode_20channels(uint64_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
+    *relaySetRegister = 0x0000;
+    *relayUnsetRegister = 0x0000;
+
+    // There is no need to run the loop, if there is nothing to do.
+    if (command != 0x00000000) {
+        // Process the channels (incl. CH21, 4W mode)
+        for (uint8_t i = 0; i < 22; i++) {
+            *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even clock pulses -> turn relays off
+            *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd clock pulses -> turn relays on
+        }
+    }
+    return 0;
+}
+
+bool validateRelayState(uint32_t channelState) {
+    // A valid state is the following:
+    // - If the the two relay banks are connected, only one relay may be opened
+    // - If the banks are disconnected (4W mode), one relay in each bank may be connected
+    int countBank1 = __builtin_popcountl(channelState & 0x003FF);
+    int countBank2 = __builtin_popcountl(channelState & 0xFFC00);
+    bool ch21Enabled = (0x100000 & channelState);
+    return
+        (!ch21Enabled && (countBank1 + countBank2 <= 1))   // If "CH21" (4W Relay) is disabled
+        || (ch21Enabled && (countBank1 <= 1 && countBank2 <= 1)); // If "CH21" (4W Relay) is enabled
+}
+
+void setRelays(uint32_t newChannelState) {
+    // If we have a new state, update the relays
+    if (newChannelState != channelState) {
+        channelState = newChannelState;
+
+        // First disconnect all channels, that need to be disconnected
+        for (uint8_t i=0; i<21; i++) {
+            if (!(channelState & (1 << i))) {
+                HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_RESET);
+            }
+        }
+
+        // If CH11-CH20 are turned off, disconect them from the all buses to reduce the isolation capacitance
+        // else connect it either to the 4W output or the sense output
+        if (!(channelState & 0xFFC00)) {
+            HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, GPIO_PIN_RESET);
+        } else {
+            HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, !(channelState & (1 << 20)));       // TODO: Check if that channel setting is sent
+            HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, !!(channelState & (1 << 20)));
+        }
+
+        // Finally connect all channels, that need to be connected
+        for (uint8_t i=0; i<21; i++) {
+            if (channelState & (1 << 20)) {
+                HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_SET);
+            }
+        }
+    }
+}
+
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
+    if (GPIO_Pin == Clock_Pin) {
+        // Clock in a new bit
+        receivedSequence = receivedSequence << 1;
+        receivedSequence |= HAL_GPIO_ReadPin(Bus_Sense_GPIO_Port, Bus_Sense_Pin);
+        receivedCounter++;
+        timeSinceLastClock = HAL_GetTick();
+    } else if (GPIO_Pin == Strobe_Pin) {
+        // The sequence is over, decode it now
+        HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+        uartbuffer[0] = '\0';
+        uint32_t newChannelState = channelState;
+
+        if (receivedCounter == 24) {
+            // We have a command for a 10 channel SCAN2000/SCAN2001 card
+            uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
+            int result = decode_10channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
+            if (result) {
+                // Terminate here and print an error
+                sprintf((char *)uartsinglemessage, "Error. Invalid command received: 0x%llx\nDropping command.\n", receivedSequence);
+                strcat((char *)uartbuffer, (char *)uartsinglemessage);
+            } else {
+                // Now apply the updates
+                newChannelState |= relaySetRegister;    // closed channels
+                newChannelState &= ~relayUnsetRegister; // opened channels
+            }
+        } else if (receivedCounter == 48) {
+            uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
+            decode_20channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
+            // Now apply the updates
+            newChannelState |= relaySetRegister;    // closed channels
+            newChannelState &= ~relayUnsetRegister; // opened channels
+        } else {
+            // Do not process the command, if it is of unknown size
+            sprintf((char *)uartsinglemessage, "Error. Invalid command length: %u\nDropping command.\n", receivedCounter);
             strcat((char *)uartbuffer, (char *)uartsinglemessage);
         }
-        if (receivedSequence != 0x0) {
-            // process the command
-            uint8_t counter;
-            for (counter = 0; counter < 20; counter++) {
-                // Even clock pulses -> turn relays off
-                if ((receivedSequence & ((uint64_t)1 << (2 * counter))) != 0) {
-                    // turn off channel (GPIO_PIN_RESET -> LOW)
-                    HAL_GPIO_WritePin(
-                        GPIOsequence[channelSequence[counter]-1],
-                        PinSequence[channelSequence[counter]-1],
-                        GPIO_PIN_RESET
-                    );
-                    numberOfChannelsActive--;
-                    channelState &= ~((long)1 << (channelSequence[counter] - 1));
-                    sprintf((char *)uartsinglemessage, "CH%d OFF\n", channelSequence[counter]);
-                    strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                    if (numberOfChannelsActive < 0) {
-                        sprintf((char *)uartsinglemessage, "Warning too many ssr off requests\n");
-                        strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                        numberOfChannelsActive = 0;
-                     }
-                }
-                // Odd clock pulses -> turn relays on
-                if ((receivedSequence & ((uint64_t)1 << (2 * counter + 1))) != 0) {
-                    // turn on channel (GPIO_PIN_SET -> HIGH)
-                    if (numberOfChannelsActive < MAXALLOWEDONCHANNELS) {
-                        HAL_GPIO_WritePin(
-                            GPIOsequence[channelSequence[counter] - 1], PinSequence[channelSequence[counter] - 1],
-                            GPIO_PIN_SET
-                        );
-                        numberOfChannelsActive++;
-                        channelState |= (1 << (channelSequence[counter] - 1));
-                        sprintf((char *)uartsinglemessage, "CH%d ON\n", channelSequence[counter]);
-                        strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                    }
-                    else {
-                        sprintf((char *)uartsinglemessage, "Error, maximum allowed of on ssrs reached. CH%d did not switch on\n", channelSequence[counter]);
-                        strcat((char *)uartbuffer, (char *)uartsinglemessage);;
-                    }
-                }
-            }
-            // channel 21
-            if ((channelState & 0xFFC00) == 0) {
-                // If channels 11 to 20 not used, turn off both bus2 switches
-                channel21Req = CH21REQOFF;
-            }
-            else {
-                // But turn the bus on again, on the next command for CH11 to CH20 use
-                channel21Req = channel21DMMCommand;
-            }
-            if ((receivedSequence & ((uint64_t)1<<(2*20))) !=0) {
-                // switch bus2 to out
-                channel21Req = CH21REQOUT;
-                channel21DMMCommand = CH21REQOUT;
-            }
-            if ((receivedSequence & ((uint64_t)1<<(2*20+1))) !=0) {
-                // switch bus2 to sense
-                channel21Req = CH21REQSENSE;
-                channel21DMMCommand = CH21REQSENSE;
-            }
 
-            if ((channel21Req == CH21REQOFF) && channel21State != CH21STATEOFF) {
-                HAL_GPIO_WritePin(GPIOA, Bus_Sense_Pin, GPIO_PIN_RESET);
-                HAL_GPIO_WritePin(GPIOC, Bus_In_Pin, GPIO_PIN_RESET);
-                channel21State = CH21STATEOFF;
-                numberOfChannelsActive--;
-                sprintf((char *)uartsinglemessage, "CH21 OFF\n");
-                strcat((char *)uartbuffer, (char *)uartsinglemessage);
-            }
-            if ((channel21Req == CH21REQOUT) && (channel21State != CH21STATEOUT)) {
-                if ((numberOfChannelsActive <= MAXALLOWEDONCHANNELS - 1) || ((numberOfChannelsActive <= MAXALLOWEDONCHANNELS) && (channel21State != CH21STATEOFF))) {
-                    HAL_GPIO_WritePin(GPIOA, Bus_Sense_Pin, GPIO_PIN_RESET);
-                    HAL_GPIO_WritePin(GPIOC, Bus_In_Pin, GPIO_PIN_SET);
-                    if (channel21State == CH21STATEOFF) numberOfChannelsActive++;
-                    channel21State = CH21STATEOUT;
-                    sprintf((char *)uartsinglemessage, "CH21 OUT\n");
-                    strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                }
-                else {
-                    sprintf((char *) uartsinglemessage, "Error, maximum allowed of on ssrs reached. Bus2 Mux did not switch on\n");
-                    strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                }
-            }
-            if ((channel21Req == CH21REQSENSE) && channel21State != CH21STATESENSE ) {
-                if ((numberOfChannelsActive <= MAXALLOWEDONCHANNELS - 1) || ((numberOfChannelsActive <= MAXALLOWEDONCHANNELS) && (channel21State != CH21STATEOFF))) {
-                    HAL_GPIO_WritePin(GPIOC, Bus_In_Pin, GPIO_PIN_RESET);
-                    HAL_GPIO_WritePin(GPIOA, Bus_Sense_Pin, GPIO_PIN_SET);
-                    if (channel21State == CH21STATEOFF) numberOfChannelsActive++;
-                    channel21State = CH21STATESENSE;
-                    sprintf((char *)uartsinglemessage, "CH21 SENSE\n");
-                    strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                }
-                else {
-                    sprintf((char *)uartsinglemessage, "Error, maximum allowed of on ssrs reached. Bus2 Mux did not switch on\n");
-                    strcat((char *)uartbuffer, (char *)uartsinglemessage);
-                }
-            }
+        // Test if the new state is valid and if so, apply it
+        bool validState = validateRelayState(newChannelState);
+
+        if (validState) {
+            setRelays(newChannelState);
+            // sprintf((char *)uartsinglemessage, "Relay state, 0x%lx\n", channelState);
+            // strcat((char *)uartbuffer, (char *)uartsinglemessage);
+        } else {
+            sprintf((char *)uartsinglemessage, "Error. Invalid relay state: 0x%lx\nDropping command.\n", newChannelState);
+            strcat((char *)uartbuffer, (char *)uartsinglemessage);
         }
-        channel21Req = CH21NOREQ;
-        receivedSequence = 0x0;
+
+        receivedSequence = 0x00;
         receivedCounter = 0;
         if (uartbuffer[0] != '\0') {
             UARTSendDMA();
