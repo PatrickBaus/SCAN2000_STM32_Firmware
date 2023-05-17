@@ -124,18 +124,20 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+  /* USER CODE BEGIN 3 */
   while (1)
   {
+    // Wipe everything I received if the last clock pulse received was 1ms or more in the past.
+    // Normally clock period is 10us, and strobe follows within 20us, so this will do.
+    // The handling of the clock and strobe, and the update of timeSinceLastClock 
+    // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be 
+    // somewhat robust against concurrent access.
     uint32_t now = HAL_GetTick();
-    if (HAL_GetTick() - timeSinceLastClock > 1) {
+    if (now - timeSinceLastClock > 1) {
         receivedCounter = 0;
         receivedSequence = 0;
         timeSinceLastClock = now;
     }
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
