@@ -1,3 +1,8 @@
+WARNING:
+===================
+
+This code is not functional. It is riddled with bugs, crashes, misses functionality, etc. I will clean it up soon.
+
 Keithley SCAN2000 SSR Replacement Firmware
 ===================
 
