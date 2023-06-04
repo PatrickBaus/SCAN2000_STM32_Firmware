@@ -36,6 +36,12 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define LOG_DEBUG_MESSAGES
+
+// Workaround since newlib-nano does not support uint64_t in printf()
+#define PRI_UINT64_C_Val(value) ((unsigned long) (value>>32)),((unsigned long)value)
+#define PRI_UINT64 "%08lx %08lx"
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,11 +60,26 @@ uint8_t receivedCounter = 0;
 uint32_t channelState = 0;
 uint8_t uartsinglemessage[71], uartbuffer[2000], uartTransmitBuffer[2000];
 
+// Pin mapping of the output pins to the relays
 GPIO_TypeDef* GPIOsequence[] = {CH1_GPIO_Port, CH2_GPIO_Port, CH3_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH8_GPIO_Port, CH9_GPIO_Port, CH10_GPIO_Port, CH11_GPIO_Port, CH12_GPIO_Port, CH13_GPIO_Port, CH14_GPIO_Port, CH15_GPIO_Port, CH16_GPIO_Port, CH17_GPIO_Port, CH18_GPIO_Port, CH19_GPIO_Port, CH20_GPIO_Port};
 uint32_t PinSequence[] = {CH1_Pin, CH2_Pin, CH3_Pin, CH4_Pin, CH5_Pin, CH6_Pin, CH7_Pin, CH8_Pin, CH9_Pin, CH10_Pin, CH11_Pin, CH12_Pin, CH13_Pin, CH14_Pin, CH15_Pin, CH16_Pin, CH17_Pin, CH18_Pin, CH19_Pin, CH20_Pin};
 uint8_t scan2000_20ChannelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21, 22};    // CH11..CH20, CH1..CH10, Bank 2 to OUT, Bank 2 to 4W
 uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12};      // CH1..CH10, 4W
 uint8_t scan2000ChannelOnSequence[] = {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11};      // CH1..CH10, 4W
+
+struct msgInfo {
+  enum {msgUnknown = 0, msgOK, msgLengthError, msgDataError, msgRelayError} state;
+  uint8_t receivedCounter;
+  uint64_t receivedSequence;
+  uint32_t channelState;
+  uint32_t timestamp;
+};
+
+// circular buffer for messages
+struct msgInfo msgBuffer[256];
+uint8_t msgReadLevel; // to be set only from the main loop.
+uint8_t msgWriteLevel; // to be set only from the interrupt handler
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,6 +89,10 @@ static void MX_DMA_Init(void);
 static void MX_USART4_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void UARTSendDMA(void);
+static void MsgBuffer_Init(void);
+static void MsgBuffer_add(struct msgInfo msg); // to be called only from the interrupt handler
+static void MsgBuffer_print(void);
+
 #ifdef __GNUC__
 /* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
    set to 'Yes') calls __io_putchar() */
@@ -113,27 +138,39 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART4_UART_Init();
+  MsgBuffer_Init();
   /* USER CODE BEGIN 2 */
   //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);  // turn on the LED, the logic is inverted
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);  // turn on the LED
   printf("\n===============\nBooting\n");
   for (uint8_t i=0; i < 6; i++) {
     HAL_Delay(100); // sleep for 100 ms
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
   }
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET); // led off
+#ifdef LOG_DEBUG_MESSAGES
+  printf("Log level: DEBUG\n");
+#endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    MsgBuffer_print();
+#ifdef LOG_DEBUG_MESSAGES
     uint32_t now = HAL_GetTick();
     if (now - timeSinceLastClock > 1) {
+    // Wipe everything I received if the last clock pulse received was 1ms or more in the past.
+    // Normally clock period is 10us, and strobe follows within 20us, so this will do.
+    // The handling of the clock and strobe, and the update of timeSinceLastClock
+    // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
+    // somewhat robust against concurrent access.
         receivedCounter = 0;
         receivedSequence = 0;
         timeSinceLastClock = now;
     }
+#endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -319,6 +356,59 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+static void MsgBuffer_Init(void) {
+  memset(msgBuffer,0, sizeof(msgBuffer));
+  msgWriteLevel = 0;
+  msgReadLevel = 0;
+}
+
+/*
+ * Add a merssage to the message queue.
+ * to be called only from the interrupt handler.
+ */
+static void MsgBuffer_add(struct msgInfo msg) {
+  memcpy(&(msgBuffer[msgWriteLevel]), &msg, sizeof(msg));
+  msgWriteLevel++;
+}
+
+static void MsgBuffer_print(void) {
+  struct msgInfo msg;
+  char outputstate[24+2+1]; // 24 + 2 spaces + null
+  while (msgReadLevel != msgWriteLevel) {
+    memcpy(&msg, &(msgBuffer[msgReadLevel]), sizeof(msg));
+    sprintf((char *)uartsinglemessage, "%lu - ", msg.timestamp);
+    strcat((char *)uartbuffer, (char *)uartsinglemessage);
+    int offset = 0;
+    for (uint8_t i=0; i<24; i++) {
+      bool b = msg.channelState & (1 << i);
+      if ((i == 10) || (i == 20)) {
+        outputstate[i+offset] = ' ';
+        offset++;
+      }
+      outputstate[i+offset] = b ? '1': '0';
+    }
+    outputstate[sizeof(outputstate) - 1] = 0;
+    if (msg.state == msgOK) {
+      sprintf((char *)uartsinglemessage, "DEBUG - OK - %u bit command received: 0x" PRI_UINT64 ". Channel state becomes %s (0x%08lx)\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+    } else if (msg.state == msgLengthError) {
+      sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command received, dropping.\n", (unsigned int)msg.receivedCounter);
+    } else if (msg.state == msgDataError) {
+      sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command received: 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
+    } else if (msg.state == msgRelayError) {
+      sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command received: 0x" PRI_UINT64 ". Relay state wanted: %s (0x%08lx), dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+    } else {
+      sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command received: 0x" PRI_UINT64 ". Relay state wanted: %s (0x%08lx), dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+    }
+    // FIXME: strcat is unsafe
+    strcat((char *)uartbuffer, (char *)uartsinglemessage);
+    msgReadLevel++;
+  }
+  if (uartbuffer[0] != '\0') {
+    UARTSendDMA();
+  }
+}
+
 int decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
     // Check always high bits
     if ((command & SCAN_2000_ALWAYS_HIGH_BITS) != SCAN_2000_ALWAYS_HIGH_BITS) {
@@ -393,14 +483,14 @@ void setRelays(uint32_t newChannelState) {
             }
         }
 
-        // If CH11-CH20 are turned off, disconect them from the all buses to reduce the isolation capacitance
+        // If CH11-CH20 are turned off, disconnect them from the all buses to reduce the isolation capacitance
         // else connect it either to the 4W output or the sense output
         if (!(channelState & 0xFFC00)) {
             HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, GPIO_PIN_RESET);
             HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, GPIO_PIN_RESET);
         } else {
             HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, !(channelState & (1 << 20)));       // TODO: Check if that channel setting is sent
-            HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, !!(channelState & (1 << 20)));
+            HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, !(channelState & (1 << 20)));
         }
 
         // Finally connect all channels, that need to be connected
@@ -421,8 +511,16 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
         timeSinceLastClock = HAL_GetTick();
     } else if (GPIO_Pin == Strobe_Pin) {
         // The sequence is over, decode it now
+        // Toggle the led on every message
         HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-        uartbuffer[0] = '\0';
+        struct msgInfo msg;
+        bool validState = true;
+        msg.state = msgUnknown;
+        msg.timestamp = HAL_GetTick();
+        msg.receivedCounter = receivedCounter;
+        msg.receivedSequence = receivedSequence;
+        msg.channelState = 0;
+
         uint32_t newChannelState = channelState;
 
         if (receivedCounter == 24) {
@@ -430,11 +528,9 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
             uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
             int result = decode_10channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
             if (result) {
-                // Terminate here and print an error. Do note, we only received 24 bit (6 byte).
-                // newlib-nano does not support printing 64-bit numbers (%llx), so we drop the leading zeros
-                // convert to unsigned long.
-                sprintf((char *)uartsinglemessage, "Error. Invalid command received: 0x%06lx\nDropping command.\n", (uint32_t)(receivedSequence));
-                strcat((char *)uartbuffer, (char *)uartsinglemessage);
+                // Terminate here and print an error
+                msg.state = msgDataError;
+                validState = false;
             } else {
                 // Now apply the updates
                 newChannelState |= relaySetRegister;    // closed channels
@@ -442,33 +538,31 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
             }
         } else if (receivedCounter == 48) {
             uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
-            decode_20channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
+            decode_20channels((uint64_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
             // Now apply the updates
             newChannelState |= relaySetRegister;    // closed channels
             newChannelState &= ~relayUnsetRegister; // opened channels
         } else {
             // Do not process the command, if it is of unknown size
-            sprintf((char *)uartsinglemessage, "Error. Invalid command length: %u\nDropping command.\n", receivedCounter);
-            strcat((char *)uartbuffer, (char *)uartsinglemessage);
+            msg.state = msgLengthError;
+            validState = false;
         }
 
-        // Test if the new state is valid and if so, apply it
-        bool validState = validateRelayState(newChannelState);
+        msg.channelState = newChannelState;
 
+        // Test if the new relay state is valid and if so, apply it
         if (validState) {
-            setRelays(newChannelState);
-            /*sprintf((char *)uartsinglemessage, "Relay state: 0x%lx\n", channelState);
-            strcat((char *)uartbuffer, (char *)uartsinglemessage);*/
-        } else {
-            sprintf((char *)uartsinglemessage, "Error. Invalid relay state: 0x%lx\nDropping command.\n", newChannelState);
-            strcat((char *)uartbuffer, (char *)uartsinglemessage);
+            validState = validateRelayState(newChannelState);
+
+            msg.state = validState ? msgOK : msgRelayError;
+        }
+        MsgBuffer_add(msg);
+        if (validState) {
+          setRelays(newChannelState);
         }
 
         receivedSequence = 0x00;
         receivedCounter = 0;
-        if (uartbuffer[0] != '\0') {
-            UARTSendDMA();
-        }
     }
 }
 
