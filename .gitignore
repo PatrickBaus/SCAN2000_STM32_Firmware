@@ -8,9 +8,11 @@
 ehthumbs.db
 Thumbs.db
 .~*
+test.txt
 
 # CubeMX files #
 ######################
 .mxproject
 build/*
 !build/SCAN2000_Firmware.hex
+
