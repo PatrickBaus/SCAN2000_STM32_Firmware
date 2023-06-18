@@ -38,9 +38,6 @@
 
 // if LOG_DEBUG_MESSAGES is set:
 // * logs some additional debug info
-// * uses a rather long clock signal idle timeout
-// * lights the Activity led only during interrupt handler activity, so you can use it
-//   investigate interrupt handling duration (and hangs)
 // When not set, the activity led toggles ar each received message.
 #define LOG_DEBUG_MESSAGES
 
@@ -64,7 +61,7 @@ uint32_t timeSinceLastClock = 0;
 uint64_t receivedSequence = 0;
 uint8_t receivedCounter = 0;
 uint32_t channelState = 0;
-uint8_t uartsinglemessage[71], uartbuffer[2000], uartTransmitBuffer[2000];
+uint8_t uartsinglemessage[256], uartbuffer[2000], uartTransmitBuffer[2000];
 
 // Pin mapping of the output pins to the relays
 GPIO_TypeDef* GPIOsequence[] = {CH1_GPIO_Port, CH2_GPIO_Port, CH3_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH8_GPIO_Port, CH9_GPIO_Port, CH10_GPIO_Port, CH11_GPIO_Port, CH12_GPIO_Port, CH13_GPIO_Port, CH14_GPIO_Port, CH15_GPIO_Port, CH16_GPIO_Port, CH17_GPIO_Port, CH18_GPIO_Port, CH19_GPIO_Port, CH20_GPIO_Port};
@@ -83,7 +80,7 @@ uint8_t scan2000ChannelOnSequence[] = {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11}; 
 
 // The interrupt handler IS NOT ALLOWED TO BLOCK. Therefore, I log my messages in a buffer that I print out from the main loop.
 struct msgInfo {
-  enum {msgUnknown = 0, msgOK, msgLengthError, msgDataError, msgRelayError} state;
+  enum {msgUnknown = 0, msgOK, msgIgnored, msgLengthError, msgDataError, msgRelayError} state;
   uint8_t receivedCounter;
   uint64_t receivedSequence;
   uint32_t channelState;
@@ -157,7 +154,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);  // turn on the LED
-  printf("\n===============\nBooting\n");
+  printf("\n===============\nBooting, SCAN2000-20 FW version " FW_VERSION "\n");
   for (uint8_t i=0; i < 6; i++) {
     HAL_Delay(100); // sleep for 100 ms
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
@@ -406,6 +403,8 @@ static void MsgBuffer_print(void) {
     outputstate[sizeof(outputstate) - 1] = 0;
     if (msg.state == msgOK) {
       sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command received: 0x" PRI_UINT64 ". Channel state becomes %s (0x%08lx)\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+    } else if (msg.state == msgIgnored) {
+      sprintf((char *)uartsinglemessage, "INFO - IG - %u bit command received: 0x" PRI_UINT64 ", ignored\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
     } else if (msg.state == msgLengthError) {
       sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command received, dropping.\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgDataError) {
@@ -424,10 +423,20 @@ static void MsgBuffer_print(void) {
   }
 }
 
-int decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
+typedef enum decodeResult_t {decodeOK = 0, decodeIgnored, decodeDataError, decodeLengthError} decodeResult_t;
+
+/**
+ * @brief Decode 10 channel command
+ * @param command Command received
+ * @param relaySetRegister ptr to bitmap for setting relays
+ * @param relayUnsetRegister ptr to bitmap for unsetting relays
+ * @return decodeResult_t
+ */
+decodeResult_t decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
+    decodeResult_t rv;
     // Check always high bits
     if ((command & SCAN_2000_ALWAYS_HIGH_BITS) != SCAN_2000_ALWAYS_HIGH_BITS) {
-        return 1;
+        return decodeDataError;
     }
     // Remove the bits, that are always high
     command &= ~SCAN_2000_ALWAYS_HIGH_BITS;
@@ -451,15 +460,26 @@ int decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *re
             // The list of channels, that are to tbe turned off
             *relayUnsetRegister |= !!(command & (1 << scan2000ChannelOffSequence[i])) << (i + (i / 5) * 5);
         }
+        rv = decodeOK;
+    } else {
+        rv = decodeIgnored;
     }
     // Always unset CH6-CH10 and CH-16-CH20
     // There is no need to not set the relaySetRegister, because unsetting a relay takes precidence.
     *relayUnsetRegister |= 0b11111000001111100000;
 
-    return 0;
+    return rv;
 }
 
-int decode_20channels(uint64_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
+/**
+ * @brief Decode 20 channel command
+ * 48 bits in, so I decode all, even when I do not use all
+ * @param command Command received
+ * @param relaySetRegister ptr to bitmap for setting relays
+ * @param relayUnsetRegister ptr to bitmap for unsetting relays
+ * @return decodeResult_t
+ */
+decodeResult_t decode_20channels(uint64_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
     *relaySetRegister = 0x0000;
     *relayUnsetRegister = 0x0000;
 
@@ -470,8 +490,9 @@ int decode_20channels(uint64_t command, uint32_t *relaySetRegister, uint32_t *re
             *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even clock pulses -> turn relays off
             *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd clock pulses -> turn relays on
         }
-    }
-    return 0;
+        return decodeOK;
+    } else
+        return decodeIgnored;
 }
 
 bool validateRelayState(uint32_t channelState) {
@@ -530,53 +551,55 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
         // Toggle the led on every message
         HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
         struct msgInfo msg;
-        bool validState = true;
         msg.state = msgUnknown;
         msg.timestamp = HAL_GetTick();
         msg.receivedCounter = receivedCounter;
         msg.receivedSequence = receivedSequence;
-        msg.channelState = 0;
+        msg.channelState = 0; // just a default value. Will be overwritten when possible.
 
         uint32_t newChannelState = channelState;
+        uint32_t relaySetRegister = 0x00, relayUnsetRegister = 0x00;
+        decodeResult_t decodeResult = decodeLengthError; // error state by default
 
         if (receivedCounter == 24) {
             // We have a command for a 10 channel SCAN2000/SCAN2001 card
-            uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
-            int result = decode_10channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
-            if (result) {
-                // Terminate here and print an error
-                msg.state = msgDataError;
-                validState = false;
-            } else {
-                // Now apply the updates
-                newChannelState |= relaySetRegister;    // closed channels
-                newChannelState &= ~relayUnsetRegister; // opened channels
-            }
-        } else if (receivedCounter == 48) {
-            uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
-            decode_20channels((uint64_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
-            // Now apply the updates
-            newChannelState |= relaySetRegister;    // closed channels
-            newChannelState &= ~relayUnsetRegister; // opened channels
+            decodeResult = decode_10channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
+        } else if (receivedCounter == (SCAN2000_20_BITS * 2)) {
+            decodeResult = decode_20channels((uint64_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
         } else {
             // Do not process the command, if it is of unknown size
-            msg.state = msgLengthError;
-            validState = false;
+            decodeResult = decodeLengthError;
         }
 
+        if ((decodeResult == decodeOK) || (decodeResult == decodeIgnored)) {
+            // Now apply the updates (can happen even when command is ignored, as I unset unwanted relays by default)
+            newChannelState |= relaySetRegister;    // closed channels
+            newChannelState &= ~relayUnsetRegister; // opened channels
+            if (decodeResult == decodeOK)
+                msg.state = msgOK;
+            else
+                msg.state = msgIgnored;
+
+            // Test if the new state is valid and if so, apply it
+            if (validateRelayState(newChannelState)) {
+                setRelays(newChannelState);
+            } else {
+                msg.state = msgRelayError;
+            }
+        } else {
+            // very likely decodeResult == decodeXError
+            // Terminate here and signal an error
+            if (decodeResult == decodeDataError)
+                msg.state = msgDataError;
+            else
+                msg.state = msgLengthError;
+        }
+
+        // signal the message to the print/log loop
         msg.channelState = newChannelState;
-
-        // Test if the new relay state is valid and if so, apply it
-        if (validState) {
-            validState = validateRelayState(newChannelState);
-
-            msg.state = validState ? msgOK : msgRelayError;
-        }
         MsgBuffer_add(msg);
-        if (validState) {
-          setRelays(newChannelState);
-        }
 
+        // and init for the next command
         receivedSequence = 0x00;
         receivedCounter = 0;
     }
