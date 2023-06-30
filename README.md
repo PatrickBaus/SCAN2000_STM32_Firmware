@@ -42,7 +42,8 @@ When you enable ```#define LOG_DEBUG_MESSAGES``` in ```main.c```, the activity l
 TODOS
 -----
 
-This code has not been tested yet under a SCAN2000 (10 channel) emulation. Looking at the code, it should work, but I have not tested it.
+* *IMPORTANT*: Sometimes, it seems to miss a command. I need to debug this further.
+* This code has not been tested yet under a SCAN2000 (10 channel) emulation. Looking at the code, it should work, but I have not tested it.
 
 Related Repositories
 --------------------
