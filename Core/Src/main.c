@@ -59,9 +59,11 @@ UART_HandleTypeDef huart4;
 DMA_HandleTypeDef hdma_usart4_tx;
 
 /* USER CODE BEGIN PV */
-uint32_t timeSinceLastClock = 0;
+// set by the interrupt loop, but read (and maintained) by the main loop
+volatile uint32_t timeSinceLastClock = 0;
+// maintained by the interrupt loop. 
 uint64_t receivedSequence = 0;
-uint8_t receivedCounter = 0;
+volatile uint8_t receivedCounter = 0; // read by main loop
 uint32_t channelState = 0;
 
 // This is where the pins are. This is not used for the init, so if you change anything, also change in the init.
@@ -98,7 +100,7 @@ struct msgInfo {
 
 // circular buffer for messages
 struct msgInfo msgBuffer[256]; // MUST BE 256 (or more), uint8_t max. Just forgot what is the preprocessor define for that.
-uint8_t msgReadLevel; // to be set only from the main loop.
+volatile uint8_t msgReadLevel; // to be set only from the main loop.
 uint8_t msgWriteLevel; // to be set only from the interrupt handler
 
 /* USER CODE END PV */
@@ -179,30 +181,34 @@ int main(void)
   while (1)
   {
     MsgBuffer_print();
-    // Wipe everything I received if the last clock pulse received was X ms or more in the past.
-    // Normally clock period is 10us, and strobe follows within 20us, so 1 ms or more will do.
+     
+    // Detect idle situations
+    // Normally clock period is 10us, and strobe follows within 20us.
     // The handling of the clock and strobe, and the update of timeSinceLastClock 
-    // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be 
-    // somewhat robust against concurrent access.
+    // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback)
+    // TODO: For some reason, if I do not print idle messages, the MsgBuffer_print does not print.
 #ifdef LOG_DEBUG_MESSAGES
 // 5 sec idle timeout for debugging
 #define IDLE_TIMEOUT 5000
-#else
-#define IDLE_TIMEOUT 1
-#endif    
+
     uint32_t now = HAL_GetTick();
-    if (now - timeSinceLastClock > IDLE_TIMEOUT) { 
-        timeSinceLastClock = now; 
-        if (receivedCounter) {
-          receivedCounter = 0;
-          receivedSequence = 0;  
+    // get local copies of the variables that are maintained in the interrupt handler
+    uint32_t t = timeSinceLastClock;
+    uint8_t c = receivedCounter;
+
+    if (now - t > IDLE_TIMEOUT) { 
+        timeSinceLastClock = now; // reset to avoid message storms. This is safe.
+        if (c) {
 #ifdef LOG_DEBUG_MESSAGES
-          printf("%lu - ERROR - IDLE TIMEOUT - Idle time elapsed, Clocks received: %u. Resetting counters.\n",now, (unsigned int)receivedCounter);
+          printf("%lu - WARNING - IDLE TIMEOUT detected with %u clocks received. This might provoke problems, but it may also be a false alert.\n",now, (unsigned int)c);
+          // I will not clear receivedCounter, as this whole thing is not robust against concurrent access.
+          // Any real errors will be handled in the interrupt handler.
         } else {
           printf("%lu - DEBUG - Idle\n",now);
 #endif
         }
     }
+#endif    
   }
   /* USER CODE END 3 */
 }
