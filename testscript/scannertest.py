@@ -29,8 +29,8 @@ NPLC_MAX_TARGET = 10
 MEASUREMENT_NPLC = 1
 
 TARGET_CH1 = 2
-TARGET_CH11 = 4
-TARGET_DEVIANCE_ABS = 1
+TARGET_CH11 = 3.6
+TARGET_DEVIANCE_ABS = 0.5
 
 
 def inst_target_init(rm):
@@ -83,8 +83,8 @@ def getTargetCh(ch):
         s = inst_target.query('READ? "defbuffer1", READ, CHAN, STAT').strip()
     except visa.VisaIOError as e:
         # Handle the exception.
-        print(f"ERROR: {e.description}")
-        s = ""
+        print(f"EXCEPTION when on channel {ch}: {e.description}")
+        return None
         
     # inst_target.write(f"ROUT:OPEN (@{ch})")
     # inst_target.write("ROUT:OPEN:ALL")
@@ -109,7 +109,7 @@ def getTargetCh(ch):
 
 
 def format_float(val):
-    return f"{val:+.2f}".replace(".", ",")
+    return f"{val:+.1f}".replace(".", ",")
 
 
 def readDevices():
@@ -123,11 +123,13 @@ def readDevices():
 
     print("Opening target.")
     if not inst_target_init(rm):
-        return 1
+        rm.close()    
+        return True
 
     print("Init OK")
 
     err = False
+    retval = True
     nr = 1
     while not err:
         t = TARGET_CH1
@@ -139,6 +141,7 @@ def readDevices():
         if abs(f - t) > TARGET_DEVIANCE_ABS:
             print(f"ERROR: CH{ch} expected {f} ohm, got {t} ohm. Channel error.")
             err = True
+            retval = False
             continue
         ch1 = f
 
@@ -151,6 +154,7 @@ def readDevices():
         if abs(f - t) > TARGET_DEVIANCE_ABS:
             print(f"ERROR: CH{ch} expected {f} ohm, got {t} ohm. Channel error.")
             err = True
+            retval = False
             continue
         ch11 = f
 
@@ -158,8 +162,12 @@ def readDevices():
         nr += 1
 
     print("Halted")
+    rm.close()
+    return retval
 
 
 if __name__ == "__main__":
     # visa.log_to_screen()
-    readDevices()
+    while readDevices():
+        print("Will restart again, try again.")
+    print("Fatal error, cancelled.")
