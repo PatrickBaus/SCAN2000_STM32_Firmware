@@ -57,9 +57,11 @@ UART_HandleTypeDef huart4;
 DMA_HandleTypeDef hdma_usart4_tx;
 
 /* USER CODE BEGIN PV */
-uint32_t timeSinceLastClock = 0;
+// set by the interrupt loop, but read (and maintained) by the main loop
+volatile uint32_t timeSinceLastClock = 0;
+// maintained by the interrupt loop.
 uint64_t receivedSequence = 0;
-uint8_t receivedCounter = 0;
+volatile uint8_t receivedCounter = 0; // read by main loop
 uint32_t channelState = 0;
 uint8_t uartsinglemessage[256], uartbuffer[2000], uartTransmitBuffer[2000];
 
@@ -89,7 +91,7 @@ struct msgInfo {
 
 // circular buffer for messages
 struct msgInfo msgBuffer[256]; // MUST BE 256 (or more), uint8_t max. Just forgot what is the preprocessor define for that.
-uint8_t msgReadLevel; // to be set only from the main loop.
+volatile uint8_t msgReadLevel; // to be set only from the main loop.
 uint8_t msgWriteLevel; // to be set only from the interrupt handler
 
 /* USER CODE END PV */
