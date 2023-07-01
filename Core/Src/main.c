@@ -186,7 +186,8 @@ int main(void)
     // Normally clock period is 10us, and strobe follows within 20us.
     // The handling of the clock and strobe, and the update of timeSinceLastClock 
     // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback)
-    // TODO: For some reason, if I do not print idle messages, the MsgBuffer_print does not print.
+    // TODO: For some reason, if I do not print idle messages, the MsgBuffer_print does not print. Fix that.
+    // TODO: make this concurrent access safe. I get fairly regular timeout detections that should not happen. Looks like timeSinceLastClock (uint32_t) operations are not atomic.  Maybe use something like doAtomicRead.
 #ifdef LOG_DEBUG_MESSAGES
 // 5 sec idle timeout for debugging
 #define IDLE_TIMEOUT 5000

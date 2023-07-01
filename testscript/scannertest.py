@@ -16,9 +16,11 @@
 import pyvisa as visa
 import time
 
+rm_target = None
 dev_target = None
 
 DEBUG = False
+MAX_RETRIES = 5
 
 # SCPI Addresses:
 # Target
@@ -32,10 +34,59 @@ TARGET_CH1 = 2
 TARGET_CH11 = 3.6
 TARGET_DEVIANCE_ABS = 0.5
 
-
-def inst_target_init(rm):
+# Start or Restart the connection to the device
+def inst_target_restart():
+    global rm_target
     global inst_target
-    inst_target = rm.open_resource(ADDR_TARGET)
+        
+        
+    # close old session, if it was there
+    try:
+        if rm_target is not None:
+            rm_target.close()
+            rm_target = None
+    except:
+        pass
+    
+    # Connect to the device
+    try:
+        rm_target = visa.ResourceManager()
+        inst_target = rm_target.open_resource(ADDR_TARGET)
+    except Exception as e:
+        print(f"Exception opening target device: {type(e).__name__}: {e}")
+        return False 
+    
+    inst_target.write("*CLS")
+    
+    # flush data from last session. Should throw timeout exception
+    try:
+        s = "-"
+        while len(s) > 0:
+            s = inst_target.read()
+    except Exception as e:
+        # print(e)
+        pass
+    
+    # flush any errors
+    s = "-"
+    while not s.startswith("0,\"No error"):
+        s = inst_target.query("SYST:ERR?").strip()
+
+    # check ID
+    s = inst_target.query("*IDN?").strip()
+    if "DMM6500" not in s:
+        print(f'ERROR: device ID is unexpected: "{s}"')
+        return False
+    
+    return True
+    
+
+def inst_target_init():
+    global inst_target
+    global rm_target
+    
+    if not inst_target_restart():
+        return False
 
     nplc = MEASUREMENT_NPLC
     avg_filter = 1
@@ -44,14 +95,6 @@ def inst_target_init(rm):
         avg_filter = MEASUREMENT_NPLC / NPLC_MAX_TARGET
         # in ms
         inst_target.timeout = 10000
-
-    inst_target.write("*CLS")
-
-    # check ID
-    s = inst_target.query("*IDN?").strip()
-    if "DMM6500" not in s:
-        print(f'ERROR: device ID is unexpected: "{s}"')
-        return False
 
     # set to voltage measurement, inputs 1 and 11
     inst_target.write("SENS:FUNC 'RES', (@1,11)")
@@ -76,15 +119,27 @@ def getTargetCh(ch):
     global inst_target
 
     inst_target.write("ABOR")
-    inst_target.write("ROUT:OPEN:ALL")
+    # inst_target.write("ROUT:OPEN:ALL") # not needed, the DMM will do that, PROVIDED I have set a function to both
     inst_target.write(f"ROUT:CLOS (@{ch})")
-    try:
-        # TODO: This sometimes throws an I/O error. Debug further.
-        s = inst_target.query('READ? "defbuffer1", READ, CHAN, STAT').strip()
-    except visa.VisaIOError as e:
-        # Handle the exception.
-        print(f"EXCEPTION when on channel {ch}: {e.description}")
-        return None
+    retry_count = MAX_RETRIES
+    while retry_count > 0:
+        retry_count -= 1
+        try:
+            # This sometimes throws an I/O error
+            s = inst_target.query('READ? "defbuffer1", READ, CHAN, STAT').strip()
+        except visa.VisaIOError as e:
+            # Handle the exception.
+            # The communications channel is busted now. I need to restart the resource manager and the resource.
+            # This means: if you want it to be restartable in place without disturbing other devices, 
+            # you need to have a resource manager per device.
+            if retry_count > 0:
+                print(f"EXCEPTION when on channel {ch}: {e.description}, restarting the connection if possible.")
+                if not inst_target_restart():
+                    return None
+                print("Restarted the connection.")
+            else:
+                print(f"EXCEPTION when on channel {ch}: {e.description}, Aborting as retries have been exceeded.")                
+                return None
         
     # inst_target.write(f"ROUT:OPEN (@{ch})")
     # inst_target.write("ROUT:OPEN:ALL")
@@ -113,23 +168,15 @@ def format_float(val):
 
 
 def readDevices():
-    global inst_target
-
     print(f"Using NPLC {NPLC_MAX_TARGET}")
 
-    rm = visa.ResourceManager()
-    if DEBUG:
-        print(rm.list_resources())
-
     print("Opening target.")
-    if not inst_target_init(rm):
-        rm.close()    
-        return True
+    if not inst_target_init():
+        return
 
     print("Init OK")
 
     err = False
-    retval = True
     nr = 1
     while not err:
         t = TARGET_CH1
@@ -141,7 +188,6 @@ def readDevices():
         if abs(f - t) > TARGET_DEVIANCE_ABS:
             print(f"ERROR: CH{ch} expected {f} ohm, got {t} ohm. Channel error.")
             err = True
-            retval = False
             continue
         ch1 = f
 
@@ -154,7 +200,6 @@ def readDevices():
         if abs(f - t) > TARGET_DEVIANCE_ABS:
             print(f"ERROR: CH{ch} expected {f} ohm, got {t} ohm. Channel error.")
             err = True
-            retval = False
             continue
         ch11 = f
 
@@ -162,12 +207,9 @@ def readDevices():
         nr += 1
 
     print("Halted")
-    rm.close()
-    return retval
 
 
 if __name__ == "__main__":
     # visa.log_to_screen()
-    while readDevices():
-        print("Will restart again, try again.")
+    readDevices()
     print("Fatal error, cancelled.")
