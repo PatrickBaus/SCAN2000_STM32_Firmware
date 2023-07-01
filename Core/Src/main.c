@@ -566,7 +566,7 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
         if (receivedCounter == 24) {
             // We have a command for a 10 channel SCAN2000/SCAN2001 card
             decodeResult = decode_10channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
-        } else if (receivedCounter == (SCAN2000_20_BITS * 2)) {
+        } else if (receivedCounter == 48) {
             decodeResult = decode_20channels((uint64_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
         } else {
             // Do not process the command, if it is of unknown size
