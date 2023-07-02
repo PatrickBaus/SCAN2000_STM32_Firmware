@@ -59,11 +59,11 @@ UART_HandleTypeDef huart4;
 DMA_HandleTypeDef hdma_usart4_tx;
 
 /* USER CODE BEGIN PV */
-// set by the interrupt loop, but read (and maintained) by the main loop
+// set by both the interrupt handler and the main loop, used by the main loop
 volatile uint32_t timeSinceLastClock = 0;
-// maintained by the interrupt loop. 
+// below are all maintained and used by the interrupt handler. 
 uint64_t receivedSequence = 0;
-volatile uint8_t receivedCounter = 0; // read by main loop
+volatile uint8_t receivedCounter = 0; // also read by the main loop
 uint32_t channelState = 0;
 
 // This is where the pins are. This is not used for the init, so if you change anything, also change in the init.
@@ -98,10 +98,10 @@ struct msgInfo {
   uint32_t timestamp;
 };
 
-// circular buffer for messages
+// circular buffer for messages, used between interrupt handler and main loop
 struct msgInfo msgBuffer[256]; // MUST BE 256 (or more), uint8_t max. Just forgot what is the preprocessor define for that.
 volatile uint8_t msgReadLevel; // to be set only from the main loop.
-uint8_t msgWriteLevel; // to be set only from the interrupt handler
+volatile uint8_t msgWriteLevel; // to be set only from the interrupt handler
 
 /* USER CODE END PV */
 
@@ -177,7 +177,18 @@ int main(void)
   /* USER CODE BEGIN 3 */
 #ifdef LOG_DEBUG_MESSAGES   
   printf("Log level: DEBUG\n");
-#endif    
+#endif 
+
+  // local variables for the idle detection loop
+  uint32_t old_timeSinceLastClock;
+  uint32_t now_timeSinceLastClock;
+  uint8_t old_receivedCounter;
+  uint8_t now_receivedCounter;   
+  now_timeSinceLastClock = timeSinceLastClock;
+  now_receivedCounter = receivedCounter;
+  old_timeSinceLastClock = now_timeSinceLastClock;
+  old_receivedCounter = now_receivedCounter;
+
   while (1)
   {
     MsgBuffer_print();
@@ -187,28 +198,42 @@ int main(void)
     // The handling of the clock and strobe, and the update of timeSinceLastClock 
     // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback)
     // TODO: For some reason, if I do not print idle messages, the MsgBuffer_print does not print. Fix that.
-    // TODO: make this concurrent access safe. I get fairly regular timeout detections that should not happen. Looks like timeSinceLastClock (uint32_t) operations are not atomic.  Maybe use something like doAtomicRead.
 #ifdef LOG_DEBUG_MESSAGES
 // 5 sec idle timeout for debugging
 #define IDLE_TIMEOUT 5000
 
-    uint32_t now = HAL_GetTick();
-    // get local copies of the variables that are maintained in the interrupt handler
-    uint32_t t = timeSinceLastClock;
-    uint8_t c = receivedCounter;
+    // The following is a bit strange. Since I base my idle state on variables that are maintained
+    // in the interrupt handler, and there are no atomic operations on those variables, and 
+    // there is no sync or lock between the interrupt handler and the main loop, the variables read here
+    // can be changed while reading, and therefore can be wrong.
+    // To avoid that, I just read them 2 times, and if both reads are the same, then they should be OK.
+    // 
+    // first hold on to old values
+    old_timeSinceLastClock = now_timeSinceLastClock;
+    old_receivedCounter = now_receivedCounter;
+    // then get the present ones 
+    now_timeSinceLastClock = timeSinceLastClock;
+    now_receivedCounter = receivedCounter;
 
-    if (now - t > IDLE_TIMEOUT) { 
-        timeSinceLastClock = now; // reset to avoid message storms. This is safe.
-        if (c) {
-#ifdef LOG_DEBUG_MESSAGES
-          printf("%lu - WARNING - IDLE TIMEOUT detected with %u clocks received. This might provoke problems, but it may also be a false alert.\n",now, (unsigned int)c);
-          // I will not clear receivedCounter, as this whole thing is not robust against concurrent access.
-          // Any real errors will be handled in the interrupt handler.
-        } else {
-          printf("%lu - DEBUG - Idle\n",now);
-#endif
-        }
+    // only look at idle state if nothing is moving. 
+    if ((now_timeSinceLastClock == old_timeSinceLastClock) && (now_receivedCounter == old_receivedCounter)) {
+
+      uint32_t now = HAL_GetTick();
+
+      if (now - now_timeSinceLastClock > IDLE_TIMEOUT) { 
+          timeSinceLastClock = now; // reset to avoid message storms. This is NOT safe to do, for the same reasons that the reading is not safe. But making that safe would be rather complicated fpor little gain.
+          if (now_receivedCounter) {
+  #ifdef LOG_DEBUG_MESSAGES
+            printf("%lu - WARNING - IDLE TIMEOUT detected with %u clocks received. This might provoke problems, but it may also be a false alert.\n",now, (unsigned int)now_receivedCounter);
+            // I will not clear receivedCounter, as that could provoke a lot of problems.
+            // Any real errors will be handled in the interrupt handler.
+          } else {
+            printf("%lu - DEBUG - Idle\n",now);
+  #endif
+          }
+      }
     }
+
 #endif    
   }
   /* USER CODE END 3 */
@@ -436,17 +461,17 @@ static void MsgBuffer_print(void) {
     }
     outputstate[sizeof(outputstate) - 1] = 0;
     if (msg.state == msgOK) {
-      printf("INFO - OK - %u bit command received: 0x" PRI_UINT64 ". Channel state becomes %s (0x%08lx)\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+      printf("INFO - OK - %u bit command : 0x" PRI_UINT64 ". Channel state => %s\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else if (msg.state == msgIgnored) {
-      printf("INFO - IG - %u bit command received: 0x" PRI_UINT64 ", ignored\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
+      printf("INFO - IG - %u bit NULL command, ignored\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgLengthError) {
-      printf("ERROR - Message of invalid length - %u bit command received, dropping.\n", (unsigned int)msg.receivedCounter);
+      printf("ERROR - Message of invalid length - %u bit command, dropping.\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgDataError) {
-      printf("ERROR - Invalid command - %u bit command received: 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
+      printf("ERROR - Invalid command - %u bit command : 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
     } else if (msg.state == msgRelayError) {
-      printf("ERROR - Invalid relay state - %u bit command received: 0x" PRI_UINT64 ". Relay state wanted: %s (0x%08lx), dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+      printf("ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else {
-      printf("ERROR - Unknown error - %u bit command received: 0x" PRI_UINT64 ". Relay state wanted: %s (0x%08lx), dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+      printf("ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     }
     msgReadLevel++;
   }
