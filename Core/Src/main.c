@@ -57,11 +57,11 @@ UART_HandleTypeDef huart4;
 DMA_HandleTypeDef hdma_usart4_tx;
 
 /* USER CODE BEGIN PV */
-// set by the interrupt loop, but read (and maintained) by the main loop
+// set by both the interrupt handler and the main loop, used by the main loop
 volatile uint32_t timeSinceLastClock = 0;
-// maintained by the interrupt loop.
+// below are all maintained and used by the interrupt handler.
 uint64_t receivedSequence = 0;
-volatile uint8_t receivedCounter = 0; // read by main loop
+volatile uint8_t receivedCounter = 0; // also read by the main loop
 uint32_t channelState = 0;
 uint8_t uartsinglemessage[256], uartbuffer[2000], uartTransmitBuffer[2000];
 
@@ -89,10 +89,10 @@ struct msgInfo {
   uint32_t timestamp;
 };
 
-// circular buffer for messages
+// circular buffer for messages, used between interrupt handler and main loop
 struct msgInfo msgBuffer[256]; // MUST BE 256 (or more), uint8_t max. Just forgot what is the preprocessor define for that.
 volatile uint8_t msgReadLevel; // to be set only from the main loop.
-uint8_t msgWriteLevel; // to be set only from the interrupt handler
+volatile uint8_t msgWriteLevel; // to be set only from the interrupt handler
 
 /* USER CODE END PV */
 
@@ -404,17 +404,17 @@ static void MsgBuffer_print(void) {
     }
     outputstate[sizeof(outputstate) - 1] = 0;
     if (msg.state == msgOK) {
-      sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command received: 0x" PRI_UINT64 ". Channel state becomes %s (0x%08lx)\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+      sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command : 0x" PRI_UINT64 ". Channel state => %s\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else if (msg.state == msgIgnored) {
-      sprintf((char *)uartsinglemessage, "INFO - IG - %u bit command received: 0x" PRI_UINT64 ", ignored\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
+      sprintf((char *)uartsinglemessage, "INFO - IG - %u bit NULL command, ignored\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgLengthError) {
-      sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command received, dropping.\n", (unsigned int)msg.receivedCounter);
+      sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command, dropping.\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgDataError) {
-      sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command received: 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
+      sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command : 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
     } else if (msg.state == msgRelayError) {
-      sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command received: 0x" PRI_UINT64 ". Relay state wanted: %s (0x%08lx), dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+      sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else {
-      sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command received: 0x" PRI_UINT64 ". Relay state wanted: %s (0x%08lx), dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate, msg.channelState);
+      sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     }
     // FIXME: strcat is unsafe
     strcat((char *)uartbuffer, (char *)uartsinglemessage);
