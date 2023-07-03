@@ -38,8 +38,8 @@ TARGET_DEVIANCE_ABS = 0.5
 def inst_target_restart():
     global rm_target
     global inst_target
-
-
+        
+        
     # close old session, if it was there
     try:
         if rm_target is not None:
@@ -56,18 +56,12 @@ def inst_target_restart():
         print(f"Exception opening target device: {type(e).__name__}: {e}")
         return False 
     
+    inst_target.write("ABORT")
     inst_target.write("*CLS")
-    
-    # flush data from last session. Should throw timeout exception
-    try:
-        s = "-"
-        while len(s) > 0:
-            s = inst_target.read()
-    except Exception as e:
-        # print(e)
-        pass
-    
-    # flush any errors
+    inst_target.clear() # this purges the device's output queue.
+    inst_target.write("*CLS")
+        
+    # flush any errors (should not be needed, just to be sure)
     s = "-"
     while not s.startswith("0,\"No error"):
         s = inst_target.query("SYST:ERR?").strip()
@@ -77,14 +71,16 @@ def inst_target_restart():
     if "DMM6500" not in s:
         print(f'ERROR: device ID is unexpected: "{s}"')
         return False
-
+    
+    # inst_target.write("DISP:SCR PROC") # Open a screen that uses minimal CPU resources
+    
     return True
-
+    
 
 def inst_target_init():
     global inst_target
     global rm_target
-
+    
     if not inst_target_restart():
         return False
 
@@ -96,11 +92,12 @@ def inst_target_init():
         # in ms
         inst_target.timeout = 10000
 
-    # set to voltage measurement, inputs 1 and 11
+    # set to resistance measurement, inputs 1 and 11
     inst_target.write("SENS:FUNC 'RES', (@1,11)")
     inst_target.write(f"SENS:RES:NPLC {nplc}, (@1,11)")
     inst_target.write("RES:RANG 100, (@1,11)")
-    inst_target.write("RES:LINE:SYNC 1, (@1,11)")
+    inst_target.write("RES:AZER 0, (@1,11)")
+    #inst_target.write("RES:LINE:SYNC 1, (@1,11)")
     if avg_filter <= 1:
         inst_target.write("RES:AVER 0, (@1,11)")
     else:
