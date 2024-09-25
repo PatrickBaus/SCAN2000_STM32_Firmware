@@ -129,7 +129,7 @@ int main(void)
   while (1)
   {
     uint32_t now = HAL_GetTick();
-    if (HAL_GetTick() - timeSinceLastClock > 1) {
+    if (now - timeSinceLastClock > 1) {
         receivedCounter = 0;
         receivedSequence = 0;
         timeSinceLastClock = now;
@@ -430,8 +430,10 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
             uint32_t relaySetRegister = 0x00,  relayUnsetRegister = 0x00;
             int result = decode_10channels((uint32_t)receivedSequence, &relaySetRegister, &relayUnsetRegister);
             if (result) {
-                // Terminate here and print an error
-                sprintf((char *)uartsinglemessage, "Error. Invalid command received: 0x%llx\nDropping command.\n", receivedSequence);
+                // Terminate here and print an error. Do note, we only received 24 bit (6 byte).
+                // newlib-nano does not support printing 64-bit numbers (%llx), so we drop the leading zeros
+                // convert to unsigned long.
+                sprintf((char *)uartsinglemessage, "Error. Invalid command received: 0x%06lx\nDropping command.\n", (uint32_t)(receivedSequence));
                 strcat((char *)uartbuffer, (char *)uartsinglemessage);
             } else {
                 // Now apply the updates
