@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    # Publish pep440 tags as releases.
+    branches: [ "master" ]
+    tags: [ '*.*.*' ]
+  pull_request:
+
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install GNU Arm Embedded Toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: latest
+      - name: Build firmware
+      - run: |
+          make
+
+  push:
+    needs:
+      - build
+    runs-on: ubuntu-latest
