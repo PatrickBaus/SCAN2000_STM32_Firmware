@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -85,6 +86,7 @@ uint8_t scan2000_20ChannelSequence[SCAN2000_20_BITS] = {11, 12, 13, 14, 15, 16, 
 
 #define BITS_FOR_SCAN2000_STD 12
 // TODO test and finalise this
+
 uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12};      // CH1..CH10, 4W
 uint8_t scan2000ChannelOnSequence[] = {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11};      // CH1..CH10, 4W
 
