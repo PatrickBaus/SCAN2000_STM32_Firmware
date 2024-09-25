@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    # Publish pep440 tags as releases.
+    branches: [ "master" ]
+    tags: [ '*.*.*' ]
+  pull_request:
+
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install GNU Arm Embedded Toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: latest
+      - name: Build firmware
+        run: |
+          make
+      - name: Upload binary files as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scan2000STM32_FW
+          path: build/Scan2000STM32.hex
+          retention-days: 7
+
+  release:
+    needs:
+      - build
+    if: github.event.action == 'published'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download binary files artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: build
+          pattern: Scan2000STM32_FW-*
+          merge-multiple: true
+      - name: Append firmware image as asset
+        if: github.event.action == 'published'
+        run: |
+          gh release upload ${{ github.ref_name }} build/Scan2000STM32.hex#"SCAN2000_STM32 firmware image" --repo ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
