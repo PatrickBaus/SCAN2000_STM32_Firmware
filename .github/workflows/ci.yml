@@ -48,7 +48,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: build
-          pattern: Scan2000STM32_FW-*
+          pattern: Scan2000STM32_FW
           merge-multiple: true
       - name: Append firmware image as asset
         run: |
