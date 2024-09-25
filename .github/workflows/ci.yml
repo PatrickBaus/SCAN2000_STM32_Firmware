@@ -36,6 +36,7 @@ jobs:
   release:
     needs:
       - build
+    if: github.event.action == 'published'
     runs-on: ubuntu-latest
     steps:
       - name: Download binary files artifact
@@ -44,3 +45,10 @@ jobs:
           path: build
           pattern: Scan2000STM32_FW-*
           merge-multiple: true
+      - name: Append firmware image as asset
+        if: github.event.action == 'published'
+        run: |
+          gh release upload ${{ github.ref_name }} build/Scan2000STM32.hex#"SCAN2000_STM32 firmware image" --repo ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
