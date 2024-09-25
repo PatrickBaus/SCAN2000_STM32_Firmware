@@ -26,8 +26,22 @@ jobs:
       - name: Build firmware
       - run: |
           make
+      - name: Upload binary files as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scan2000STM32_FW
+          path: build/Scan2000STM32.hex
+          retention-days: 7
 
-  push:
+
+  release:
     needs:
       - build
     runs-on: ubuntu-latest
+    steps:
+      - name: Download binary files artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: build
+          pattern: Scan2000STM32_FW-*
+          merge-multiple: true
