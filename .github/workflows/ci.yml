@@ -24,7 +24,7 @@ jobs:
         with:
           release: latest
       - name: Build firmware
-      - run: |
+        run: |
           make
       - name: Upload binary files as artifact
         uses: actions/upload-artifact@v4
@@ -32,7 +32,6 @@ jobs:
           name: Scan2000STM32_FW
           path: build/Scan2000STM32.hex
           retention-days: 7
-
 
   release:
     needs:
