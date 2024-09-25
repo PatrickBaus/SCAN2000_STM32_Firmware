@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -53,7 +54,7 @@ uint8_t receivedCounter = 0;
 uint32_t channelState = 0;
 uint8_t uartsinglemessage[71], uartbuffer[2000], uartTransmitBuffer[2000];
 
-GPIO_TypeDef* GPIOsequence[] = {CH1_GPIO_Port, CH2_GPIO_Port, CH3_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH8_GPIO_Port, CH9_GPIO_Port, CH10_GPIO_Port, CH11_GPIO_Port, CH12_GPIO_Port, CH13_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH18_GPIO_Port, CH19_GPIO_Port, CH12_GPIO_Port};
+GPIO_TypeDef* GPIOsequence[] = {CH1_GPIO_Port, CH2_GPIO_Port, CH3_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH8_GPIO_Port, CH9_GPIO_Port, CH10_GPIO_Port, CH11_GPIO_Port, CH12_GPIO_Port, CH13_GPIO_Port, CH14_GPIO_Port, CH15_GPIO_Port, CH16_GPIO_Port, CH17_GPIO_Port, CH18_GPIO_Port, CH19_GPIO_Port, CH20_GPIO_Port};
 uint32_t PinSequence[] = {CH1_Pin, CH2_Pin, CH3_Pin, CH4_Pin, CH5_Pin, CH6_Pin, CH7_Pin, CH8_Pin, CH9_Pin, CH10_Pin, CH11_Pin, CH12_Pin, CH13_Pin, CH14_Pin, CH15_Pin, CH16_Pin, CH17_Pin, CH18_Pin, CH19_Pin, CH20_Pin};
 uint8_t scan2000_20ChannelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21, 22};    // CH11..CH20, CH1..CH10, Bank 2 to OUT, Bank 2 to 4W
 uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12};      // CH1..CH10, 4W
@@ -386,7 +387,7 @@ void setRelays(uint32_t newChannelState) {
         channelState = newChannelState;
 
         // First disconnect all channels, that need to be disconnected
-        for (uint8_t i=0; i<21; i++) {
+        for (uint8_t i=0; i<20; i++) {
             if (!(channelState & (1 << i))) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_RESET);
             }
@@ -403,8 +404,8 @@ void setRelays(uint32_t newChannelState) {
         }
 
         // Finally connect all channels, that need to be connected
-        for (uint8_t i=0; i<21; i++) {
-            if (channelState & (1 << 20)) {
+        for (uint8_t i=0; i<20; i++) {
+            if (channelState & (1 << i)) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_SET);
             }
         }
@@ -415,7 +416,7 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
     if (GPIO_Pin == Clock_Pin) {
         // Clock in a new bit
         receivedSequence = receivedSequence << 1;
-        receivedSequence |= HAL_GPIO_ReadPin(Bus_Sense_GPIO_Port, Bus_Sense_Pin);
+        receivedSequence |= HAL_GPIO_ReadPin(Data_GPIO_Port, Data_Pin);
         receivedCounter++;
         timeSinceLastClock = HAL_GetTick();
     } else if (GPIO_Pin == Strobe_Pin) {
