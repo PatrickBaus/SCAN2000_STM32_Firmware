@@ -318,9 +318,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/*
- * The K2002 clocks out commands at a 2.8 ms interval
- */
 int decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
     // Check always high bits
     if ((command & SCAN_2000_ALWAYS_HIGH_BITS) != SCAN_2000_ALWAYS_HIGH_BITS) {
@@ -457,8 +454,8 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
 
         if (validState) {
             setRelays(newChannelState);
-            // sprintf((char *)uartsinglemessage, "Relay state, 0x%lx\n", channelState);
-            // strcat((char *)uartbuffer, (char *)uartsinglemessage);
+            /*sprintf((char *)uartsinglemessage, "Relay state: 0x%lx\n", channelState);
+            strcat((char *)uartbuffer, (char *)uartsinglemessage);*/
         } else {
             sprintf((char *)uartsinglemessage, "Error. Invalid relay state: 0x%lx\nDropping command.\n", newChannelState);
             strcat((char *)uartbuffer, (char *)uartsinglemessage);
