@@ -423,8 +423,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-
 static void MsgBuffer_Init(void) {
   memset(msgBuffer,0, sizeof(msgBuffer));
   msgWriteLevel = 0;
