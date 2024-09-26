@@ -41,6 +41,14 @@
 // When not set, the activity led toggles ar each received message.
 #define LOG_DEBUG_MESSAGES
 
+#ifndef VERSION
+  #define VERSION "Unknown"
+#endif
+// Double-expansion required to stringify the version string later
+#define STR1(x)  #x
+#define STR(x)  STR1(x)
+
+
 // Workaround since newlib-nano does not support uint64_t in printf()
 #define PRI_UINT64_C_Val(value) ((unsigned long) (value>>32)),((unsigned long)value)
 #define PRI_UINT64 "%08lx %08lx"
@@ -156,7 +164,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);  // turn on the LED
-  printf("\n===============\nBooting, SCAN2000-20 FW version " FW_VERSION "\n");
+  printf("\n===============\nBooting, SCAN2000-20 FW version " STR(VERSION) "\n");
   for (uint8_t i=0; i < 6; i++) {
     HAL_Delay(100); // sleep for 100 ms
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);

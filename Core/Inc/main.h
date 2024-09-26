@@ -43,8 +43,6 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 
-#define FW_VERSION "1.3"
-
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

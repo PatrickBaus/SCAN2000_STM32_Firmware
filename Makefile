@@ -15,7 +15,6 @@
 ######################################
 TARGET = Scan2000STM32
 
-
 ######################################
 # building variables
 ######################################
@@ -24,6 +23,24 @@ DEBUG = 0
 # optimization
 OPT = -O3
 
+# Create a version string from the Git commit
+# Taken from: https://eugene-babichenko.github.io/blog/2019/09/28/nightly-versions-makefiles/
+TAG_COMMIT := $(shell git rev-list --abbrev-commit --tags --max-count=1)
+# `2>/dev/null` suppress errors and `|| true` suppress the error codes.
+TAG := $(shell git describe --abbrev=0 --tags ${TAG_COMMIT} 2>/dev/null || true)
+# here we strip the version prefix
+VERSION := $(TAG:v%=%)
+# get the latest commit hash in the short form
+COMMIT := $(shell git rev-parse --short HEAD)
+# get the latest commit date in the form of YYYYmmdd
+DATE := $(shell git log -1 --format=%cd --date=format:"%Y%m%d")
+# check if the version string is empty
+ifeq ($(VERSION),)
+	VERSION := $(COMMIT)-$(DATA)
+endif
+ifneq ($(COMMIT), $(TAG_COMMIT))
+	VERSION := $(VERSION)-next-$(COMMIT)-$(DATE)
+endif
 
 #######################################
 # paths
@@ -106,7 +123,8 @@ AS_DEFS =
 # C defines
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
--DSTM32G070xx
+-DSTM32G070xx \
+-DVERSION="$(VERSION)"
 
 
 # AS includes
