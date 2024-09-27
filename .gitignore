@@ -13,4 +13,3 @@ Thumbs.db
 ######################
 .mxproject
 build/*
-!build/Scan2000STM32.hex
