@@ -98,8 +98,8 @@ struct msgInfo {
 };
 
 // circular buffer for messages, used between interrupt handler and main loop
-struct msgInfo msgBuffer[256]; // MUST BE 256 (or more), uint8_t max. Just forgot what is the preprocessor define for that.
-volatile uint8_t msgReadLevel; // to be set only from the main loop.
+struct msgInfo msgBuffer[UINT8_MAX+1]; // The number of elements is set by the datatype of msgReadLevel/msgWriteLevel
+uint8_t msgReadLevel; // to be set only from the main loop.
 volatile uint8_t msgWriteLevel; // to be set only from the interrupt handler
 
 /* USER CODE END PV */
@@ -496,7 +496,7 @@ decodeResult_t decode_20channels(const uint64_t command, uint32_t *relaySetRegis
     // There is no need to run the loop, if there is nothing to do.
     if (command != 0x00000000) {
         // Process the channels (incl. CH21, 4W mode)
-        for (uint8_t i = 0; i < 22; i++) {
+        for (size_t i = 0; i < sizeof(scan2000_20ChannelSequence)/sizeof(scan2000_20ChannelSequence[0]); i++) {
             *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even clock pulses -> turn relays off
             *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd clock pulses -> turn relays on
         }
@@ -523,7 +523,7 @@ void setRelays(const uint32_t newChannelState) {
         channelState = newChannelState;
 
         // First disconnect all channels, that need to be disconnected
-        for (uint8_t i=0; i<20; i++) {
+        for (size_t i=0; i<sizeof(PinSequence)/sizeof(PinSequence[0]); i++) {
             if (!(channelState & (1 << i))) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_RESET);
             }
@@ -535,13 +535,13 @@ void setRelays(const uint32_t newChannelState) {
             HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, GPIO_PIN_RESET);
             HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, GPIO_PIN_RESET);
         } else {
-            bool bit_4W = (channelState & CHANNELSTATE_BITMASK_4W);
+            const bool bit_4W = (channelState & CHANNELSTATE_BITMASK_4W);
             HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, bit_4W);
             HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, !bit_4W);
         }
 
         // Finally connect all channels, that need to be connected
-        for (uint8_t i=0; i<20; i++) {
+        for (size_t i=0; i<sizeof(PinSequence)/sizeof(PinSequence[0]); i++) {
             if (channelState & (1 << i)) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_SET);
             }
