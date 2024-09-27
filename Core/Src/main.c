@@ -88,7 +88,7 @@ uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12}; 
 uint8_t scan2000ChannelOnSequence[] = {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11};      // CH1...CH10, 4W
 
 
-// The interrupt handler IS NOT ALLOWED TO BLOCK. Therefore, I log my messages in a buffer that I print out from the main loop.
+// The interrupt handler IS NOT ALLOWED TO BLOCK. Therefore, we log messages in a buffer that we print from the main loop.
 struct msgInfo {
   enum {msgUnknown = 0, msgOK, msgIgnored, msgLengthError, msgDataError, msgRelayError} state;
   uint8_t receivedCounter;
@@ -183,7 +183,7 @@ int main(void)
 #ifdef LOG_DEBUG_MESSAGES
     uint32_t now = HAL_GetTick();
     if (now - timeSinceLastClock > 1) {
-    // Wipe everything I received if the last clock pulse received was 1ms or more in the past.
+    // Wipe everything we received if the last clock pulse received was 1ms or more in the past.
     // Normally clock period is 10us, and strobe follows within 20us, so this will do.
     // The handling of the clock and strobe, and the update of timeSinceLastClock
     // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
@@ -380,13 +380,13 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 static void MsgBuffer_Init(void) {
-  memset(msgBuffer,0, sizeof(msgBuffer));
+  memset(msgBuffer, 0, sizeof(msgBuffer));
   msgWriteLevel = 0;
   msgReadLevel = 0;
 }
 
 /*
- * Add a merssage to the message queue.
+ * Add a message to the message queue.
  * to be called only from the interrupt handler.
  */
 static void MsgBuffer_add(struct msgInfo msg) {
@@ -483,13 +483,13 @@ decodeResult_t decode_10channels(uint32_t command, uint32_t *relaySetRegister, u
 
 /**
  * @brief Decode 20 channel command
- * 48 bits in, so I decode all, even when I do not use all
+ * 48 bits in, so we decode all, even when we do not use all
  * @param command Command received
  * @param relaySetRegister ptr to bitmap for setting relays
  * @param relayUnsetRegister ptr to bitmap for unsetting relays
  * @return decodeResult_t
  */
-decodeResult_t decode_20channels(uint64_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
+decodeResult_t decode_20channels(const uint64_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
     *relaySetRegister = 0x0000;
     *relayUnsetRegister = 0x0000;
 
@@ -501,23 +501,23 @@ decodeResult_t decode_20channels(uint64_t command, uint32_t *relaySetRegister, u
             *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd clock pulses -> turn relays on
         }
         return decodeOK;
-    } else
-        return decodeIgnored;
+    }
+    return decodeIgnored;
 }
 
-bool validateRelayState(uint32_t channelState) {
+bool validateRelayState(const uint32_t channelState) {
     // A valid state is the following:
     // - If the two relay banks are connected, only one relay may be opened
     // - If the banks are disconnected (4W mode), one relay in each bank may be connected
-    int countBank1 = __builtin_popcountl(channelState & CHANNELSTATE_BITMASK_BANK1);
-    int countBank2 = __builtin_popcountl(channelState & CHANNELSTATE_BITMASK_BANK2);
-    bool ch21Enabled = (CHANNELSTATE_BITMASK_4W & channelState);
+    const int countBank1 = __builtin_popcountl(channelState & CHANNELSTATE_BITMASK_BANK1);
+    const int countBank2 = __builtin_popcountl(channelState & CHANNELSTATE_BITMASK_BANK2);
+    const bool ch21Enabled = (channelState & CHANNELSTATE_BITMASK_4W);
     return
         (!ch21Enabled && (countBank1 + countBank2 <= 1))   // If "CH21" (4W Relay) is disabled
         || (ch21Enabled && (countBank1 <= 1 && countBank2 <= 1)); // If "CH21" (4W Relay) is enabled
 }
 
-void setRelays(uint32_t newChannelState) {
+void setRelays(const uint32_t newChannelState) {
     // If we have a new state, update the relays
     if (newChannelState != channelState) {
         channelState = newChannelState;
@@ -582,7 +582,7 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
         }
 
         if ((decodeResult == decodeOK) || (decodeResult == decodeIgnored)) {
-            // Now apply the updates (can happen even when command is ignored, as I unset unwanted relays by default)
+            // Now apply the updates (can happen even when command is ignored, as we unset unwanted relays by default)
             newChannelState |= relaySetRegister;    // closed channels
             newChannelState &= ~relayUnsetRegister; // opened channels
             if (decodeResult == decodeOK)
@@ -616,9 +616,9 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
 
 void UARTSendDMA(void) {
     // Block until the previous transmission is complete.
-    // In the meantime the uartTransmitBuffer will keep buffering
+    // In the meantime the uartbuffer will keep buffering
     // all output
-    while(__HAL_UART_GET_FLAG(&huart4, UART_FLAG_TC) != 1) {};
+    while(__HAL_UART_GET_FLAG(&huart4, UART_FLAG_TC) != 1) {}
     strcpy((char *)uartTransmitBuffer, (char *)uartbuffer);
     HAL_UART_Transmit_DMA(
         &huart4,
