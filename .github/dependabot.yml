@@ -9,11 +9,3 @@ updates:
     commit-message:
       # Prefix all commit messages with "[gha] "
       prefix: "[gha] "
-
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "daily"
-    commit-message:
-      # Prefix all commit messages with "[pip] "
-      prefix: "[pip] "
