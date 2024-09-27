@@ -5,7 +5,7 @@ This repository contains the firmware for the Keithley SCAN2000 SSR replacement 
 ## Contents
 - [Description](#description)
 - [Installation](#installation)
-- [Compiled binaries](#compiled-binaries)
+- [Compiled Binaries](#compiled-binaries)
 - [Debugging](#debugging)
 - [Related Repositories](#related-repositories)
 - [Versioning](#versioning)
@@ -48,7 +48,7 @@ st-flash write Scan2000STM32.bin 0x8000000
 6. Disconnect the ST-Link
 7. Reset the MCU. The *Activity* led should flash three times to signal a successful boot. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
 
-## Compiled binaries
+## Compiled Binaries
 A compiled version can be found on the the [releases](../../releases) page.
 
 ## Debugging
