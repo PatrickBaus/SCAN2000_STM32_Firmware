@@ -36,10 +36,11 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-// if LOG_DEBUG_MESSAGES is set:
+// if LOGLEVEL < 3 is set:
 // * logs some additional debug info
-// When not set, the activity led toggles ar each received message.
-#define LOG_DEBUG_MESSAGES
+#ifndef LOGLEVEL
+#define LOGLEVEL 3  // Warning
+#endif
 
 #ifndef VERSION
   #define VERSION "Unknown"
@@ -170,8 +171,10 @@ int main(void)
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
   }
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET); // led off
-#ifdef LOG_DEBUG_MESSAGES
+#if LOGLEVEL < 2
   printf("Log level: DEBUG\n");
+#elif LOGLEVEL < 3
+    printf("Log level: INFO\n");
 #endif
   /* USER CODE END 2 */
 
@@ -180,7 +183,6 @@ int main(void)
   while (1)
   {
     MsgBuffer_print();
-#ifdef LOG_DEBUG_MESSAGES
     uint32_t now = HAL_GetTick();
     if (now - timeSinceLastClock > 1) {
     // Wipe everything we received if the last clock pulse received was 1ms or more in the past.
@@ -192,7 +194,6 @@ int main(void)
         receivedSequence = 0;
         timeSinceLastClock = now;
     }
-#endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -390,46 +391,75 @@ static void MsgBuffer_Init(void) {
  * to be called only from the interrupt handler.
  */
 static void MsgBuffer_add(struct msgInfo msg) {
-  memcpy(&(msgBuffer[msgWriteLevel]), &msg, sizeof(msg));
-  msgWriteLevel++;
+  memcpy(&msgBuffer[msgWriteLevel++], &msg, sizeof(msg));
 }
 
 static void MsgBuffer_print(void) {
   struct msgInfo msg;
   char outputstate[24+2+1]; // 24 + 2 spaces + null
+  int bufferLeft = sizeof(uartbuffer);  // The number of characters remaining in the output buffer, incl. the null-byte
   while (msgReadLevel != msgWriteLevel) {
+    #if LOGLEVEL > 2
+        // Skip printing msgOK unless loglevel is DEBUG or INFO
+        if (msgBuffer[msgReadLevel].state == msgOK) {
+          msgReadLevel++;
+          continue;
+        }
+    #endif
+    #if LOGLEVEL > 1
+      // Skip printing msgIgnored unless loglevel is DEBUG
+      if (msgBuffer[msgReadLevel].state == msgIgnored) {
+          msgReadLevel++;
+          continue;
+      }
+    #endif
     memcpy(&msg, &(msgBuffer[msgReadLevel]), sizeof(msg));
-    sprintf((char *)uartsinglemessage, "%lu - ", msg.timestamp);
+    const int headerSize = sprintf((char *)uartsinglemessage, "%lu - ", msg.timestamp);
+    bufferLeft -= headerSize;  // headerSize is always >=0, sprintf will not error out
+    if (bufferLeft <= 0) {  // Use <= as the null byte needs the extra byte
+        // No more space left in the buffer. Try again after flushing the buffer.
+        break;
+    }
     strcat((char *)uartbuffer, (char *)uartsinglemessage);
     int offset = 0;
     for (uint8_t i=0; i<24; i++) {
-      bool b = msg.channelState & (1 << i);
+      const bool b = msg.channelState & (1 << i);
       if ((i == 10) || (i == 20)) {
         outputstate[i+offset] = ' ';
         offset++;
       }
       outputstate[i+offset] = b ? '1': '0';
     }
-    outputstate[sizeof(outputstate) - 1] = 0;
+    outputstate[sizeof(outputstate) - 1] = '\0';
+    int bodySize;  // headerSize is always >=0, sprintf will not error out
     if (msg.state == msgOK) {
-      sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command : 0x" PRI_UINT64 ". Channel state => %s\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command : 0x" PRI_UINT64 ". Channel state => %s\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else if (msg.state == msgIgnored) {
-      sprintf((char *)uartsinglemessage, "INFO - IG - %u bit NULL command, ignored\n", (unsigned int)msg.receivedCounter);
+      bodySize = sprintf((char *)uartsinglemessage, "DEBUG - IG - %u bit NULL command, ignored\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgLengthError) {
-      sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command, dropping.\n", (unsigned int)msg.receivedCounter);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command, dropping.\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgDataError) {
-      sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command : 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command : 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
     } else if (msg.state == msgRelayError) {
-      sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else {
-      sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     }
-    // FIXME: strcat is unsafe
+    bufferLeft -= bodySize;
+    if (bufferLeft <= 0) {  // Use <= as the null byte needs the extra byte
+        // No more space left in the buffer. Try again after flushing the buffer.
+        // Remove the header already written to the buffer
+        bufferLeft += bodySize + headerSize;
+        uartbuffer[sizeof(uartbuffer)-bufferLeft] = '\0';
+        break;
+    }
     strcat((char *)uartbuffer, (char *)uartsinglemessage);
     msgReadLevel++;
   }
+  // Send the message if at least one message was created
   if (uartbuffer[0] != '\0') {
     UARTSendDMA();
+    uartbuffer[0] = '\0';
   }
 }
 

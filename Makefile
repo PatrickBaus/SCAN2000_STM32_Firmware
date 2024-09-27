@@ -23,6 +23,8 @@ DEBUG = 0
 # optimization
 OPT = -O3
 
+LOGLEVEL = 3  # Warning, 1 = debug, 2 = info
+
 # Create a version string from the Git commit
 # Taken from: https://eugene-babichenko.github.io/blog/2019/09/28/nightly-versions-makefiles/
 TAG_COMMIT := $(shell git rev-list --abbrev-commit --tags --max-count=1)
@@ -124,7 +126,8 @@ AS_DEFS =
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32G070xx \
--DVERSION="$(VERSION)"
+-DVERSION="$(VERSION)" \
+-DLOGLEVEL=$(LOGLEVEL)
 
 
 # AS includes
