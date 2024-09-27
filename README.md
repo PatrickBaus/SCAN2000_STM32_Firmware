@@ -1,6 +1,6 @@
 [![Build firmware](https://github.com/PatrickBaus/SCAN2000_Firmware/actions/workflows/ci.yml/badge.svg)](https://github.com/PatrickBaus/SCAN2000_Firmware/actions/workflows/ci.yml)
-# Keithley SCAN2000 SSR Replacement Firmware
-This repository contains the firmware for the Keithley SCAN2000 SSR replacement pcb found [here](https://github.com/PatrickBaus/SCAN2000).
+# Keithley SCAN2000 STM32 SSR Replacement Firmware
+This repository contains the firmware for the Keithley SCAN2000 STM32 SSR replacement PCB found [here](https://github.com/PatrickBaus/SCAN2000/tree/1.1.1). Do note, this firmware only works with the 1.x revision of the PCB that uses an STM32 microcontroller.
 
 ## Contents
 - [Description](#description)
@@ -52,7 +52,7 @@ st-flash write Scan2000STM32.bin 0x8000000
 A compiled version can be found on the the [releases](../../releases) page.
 
 ## Debugging
-If you want to read back what the MCU is doing, hook up a TTL to USB converter to the TX and GND pins. I use a [Waveshare Industrial USB TO TTL Converter](https://www.waveshare.com/usb-to-ttl.htm), but any of the cheap Ebay FT232 modules works. The parameters are 115200 baud, 8 bits, no parity, 1 stop bit.
+If you want to read back what the MCU is doing, hook up a TTL to USB converter to the TX and GND pins. I use a [Waveshare Industrial USB TO TTL Converter](https://www.waveshare.com/usb-to-ttl.htm), but any of the cheap Ebay FT232RL modules works. The parameters are 115200 baud, 8 bits, no parity, 1 stop bit.
 
 To configure a Linux tty, type the following commands. Do make sure to change the tty to your tty. This example uses ```/dev/ttyUSB5```.
 
@@ -63,7 +63,7 @@ stty -F /dev/ttyUSB5 115200 cs8 -cstopb -parenb echo -echoe -echok -echoctl -ign
 ## Related Repositories
 See the following repositories for more information
 
-Keithley SCAN2000 Hardware: https://github.com/PatrickBaus/SCAN2000
+Keithley SCAN2000 Hardware: https://github.com/PatrickBaus/SCAN2000/tree/1.1.1
 
 ## Versioning
 I use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags](../../tags) available for this repository.
