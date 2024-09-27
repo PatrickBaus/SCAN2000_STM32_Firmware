@@ -33,7 +33,7 @@ sudo apt install gcc-arm-none-eabi
 9. Reset the MCU. The *Activity* led should flash three times to signal a successful boot. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
 
 ### stlink
-Alternatively, you can use the open souce toolkit [stlink](https://github.com/stlink-org/stlink) which still also the [ST-Link programmer](https://www.st.com/en/development-tools/st-link-v2.html), but programming can be done from the CLI.
+Alternatively, you can use the open souce toolkit [stlink](https://github.com/stlink-org/stlink) which also requires the [ST-Link programmer](https://www.st.com/en/development-tools/st-link-v2.html), but programming can be done from the CLI.
 1. If you want to build the firmare from its sources, then you need the ```gcc-arm-none-eabi``` compiler. Using Ubuntu, this can be done via ```apt```.
 ```bash
 sudo apt install gcc-arm-none-eabi
