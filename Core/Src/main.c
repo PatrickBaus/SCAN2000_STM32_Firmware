@@ -164,7 +164,6 @@ int main(void)
   MsgBuffer_Init();
   /* USER CODE BEGIN 2 */
   //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);  // turn on the LED
   printf("\n===============\nBooting, SCAN2000-20 FW version " STR(VERSION) "\n");
   for (uint8_t i=0; i < 6; i++) {
     HAL_Delay(100); // sleep for 100 ms
