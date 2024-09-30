@@ -245,8 +245,6 @@ void SystemClock_Config(void)
 
 /**
   * @brief USART4 Initialization Function
-  * @param None
-  * @retval None
   */
 static void MX_USART4_UART_Init(void)
 {
@@ -297,8 +295,6 @@ static void MX_DMA_Init(void)
 
 /**
   * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
   */
 static void MX_GPIO_Init(void)
 {
@@ -667,8 +663,8 @@ int _write(int file, char *ptr, int len)
 
 /**
   * @brief  Retargets the C library printf function to the USART.
-  * @param  None
-  * @retval None
+  * @param  ch Character to print
+  * @retval HAL status
   */
 PUTCHAR_PROTOTYPE
 {
