@@ -436,9 +436,9 @@ static void MsgBuffer_print(void) {
     } else if (msg.state == msgDataError) {
       bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command : 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
     } else if (msg.state == msgRelayError) {
-      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state requested: %s, dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else {
-      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state requested: %s, dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     }
     bufferLeft -= bodySize;
     if (bufferLeft <= 0) {  // Use <= as the null byte needs the extra byte
