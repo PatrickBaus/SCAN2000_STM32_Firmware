@@ -119,7 +119,6 @@ void Error_Handler(void);
 #define CH10_Pin GPIO_PIN_8
 #define CH10_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-#define SCAN_2000_ALWAYS_HIGH_BITS ((1 << 10) | (1 << 7))     // 0x0480
 #define SCAN_2000_CH1_OFF 1 << 17
 #define SCAN_2000_CH1_ON 1 << 16
 #define SCAN_2000_CH2_OFF 1 << 19
