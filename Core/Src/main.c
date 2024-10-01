@@ -245,8 +245,6 @@ void SystemClock_Config(void)
 
 /**
   * @brief USART4 Initialization Function
-  * @param None
-  * @retval None
   */
 static void MX_USART4_UART_Init(void)
 {
@@ -297,8 +295,6 @@ static void MX_DMA_Init(void)
 
 /**
   * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
   */
 static void MX_GPIO_Init(void)
 {
@@ -432,17 +428,17 @@ static void MsgBuffer_print(void) {
     outputstate[sizeof(outputstate) - 1] = '\0';
     int bodySize;  // headerSize is always >=0, sprintf will not error out
     if (msg.state == msgOK) {
-      bodySize = sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command : 0x" PRI_UINT64 ". Channel state => %s\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "INFO - OK - %u bit command : 0x" PRI_UINT64 ". Channel state => %s.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else if (msg.state == msgIgnored) {
-      bodySize = sprintf((char *)uartsinglemessage, "DEBUG - IG - %u bit NULL command, ignored\n", (unsigned int)msg.receivedCounter);
+      bodySize = sprintf((char *)uartsinglemessage, "DEBUG - IG - %u bit NULL command, ignored.\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgLengthError) {
       bodySize = sprintf((char *)uartsinglemessage, "ERROR - Message of invalid length - %u bit command, dropping.\n", (unsigned int)msg.receivedCounter);
     } else if (msg.state == msgDataError) {
       bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid command - %u bit command : 0x" PRI_UINT64 ", dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence));
     } else if (msg.state == msgRelayError) {
-      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Invalid relay state - %u bit command : 0x" PRI_UINT64 ". Relay state requested: %s, dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     } else {
-      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state wanted: %s, dropping\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
+      bodySize = sprintf((char *)uartsinglemessage, "ERROR - Unknown error - %u bit command : 0x" PRI_UINT64 ". Relay state requested: %s, dropping.\n", (unsigned int)msg.receivedCounter, PRI_UINT64_C_Val(msg.receivedSequence), outputstate);
     }
     bufferLeft -= bodySize;
     if (bufferLeft <= 0) {  // Use <= as the null byte needs the extra byte
@@ -526,8 +522,8 @@ decodeResult_t decode_20channels(const uint64_t command, uint32_t *relaySetRegis
     if (command != 0x00000000) {
         // Process the channels (incl. CH21, 4W mode)
         for (size_t i = 0; i < sizeof(scan2000_20ChannelSequence)/sizeof(scan2000_20ChannelSequence[0]); i++) {
-            *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even clock pulses -> turn relays off
-            *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd clock pulses -> turn relays on
+            *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even bits -> turn relays off
+            *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd bits -> turn relays on
         }
         return decodeOK;
     }
@@ -667,8 +663,8 @@ int _write(int file, char *ptr, int len)
 
 /**
   * @brief  Retargets the C library printf function to the USART.
-  * @param  None
-  * @retval None
+  * @param  ch Character to print
+  * @retval HAL status
   */
 PUTCHAR_PROTOTYPE
 {
