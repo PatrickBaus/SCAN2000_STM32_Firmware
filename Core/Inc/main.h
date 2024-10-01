@@ -32,7 +32,6 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -119,28 +118,6 @@ void Error_Handler(void);
 #define CH10_Pin GPIO_PIN_8
 #define CH10_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-#define SCAN_2000_CH1_OFF 1 << 17
-#define SCAN_2000_CH1_ON 1 << 16
-#define SCAN_2000_CH2_OFF 1 << 19
-#define SCAN_2000_CH2_ON 1 << 18
-#define SCAN_2000_CH3_OFF 1 << 21
-#define SCAN_2000_CH3_ON 1 << 20
-#define SCAN_2000_CH4_OFF 1 << 23
-#define SCAN_2000_CH4_ON 1 << 22
-#define SCAN_2000_CH5_OFF 1 << 8
-#define SCAN_2000_CH5_ON 1 << 9
-#define SCAN_2000_CH6_OFF 1 << 14
-#define SCAN_2000_CH6_ON 1 << 13
-#define SCAN_2000_CH7_OFF 1 << 0
-#define SCAN_2000_CH7_ON 1 << 15
-#define SCAN_2000_CH8_OFF 1 << 2
-#define SCAN_2000_CH8_ON 1 << 1
-#define SCAN_2000_CH9_OFF 1 << 4
-#define SCAN_2000_CH9_ON 1 << 3
-#define SCAN_2000_CH10_OFF 1 << 5
-#define SCAN_2000_CH10_ON 1 << 6
-#define SCAN_2000_4W_OFF 1 << 12
-#define SCAN_2000_4W_ON 1 << 11
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
