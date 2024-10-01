@@ -604,9 +604,7 @@ PUTCHAR_PROTOTYPE
 {
   /* Place your implementation of fputc here */
   /* e.g. write a character to the USART1 and Loop until the end of transmission */
-  HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 1000);
-
-  return ch;
+  return HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 1000);
 }
 
 /* USER CODE END 4 */
@@ -642,4 +640,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
