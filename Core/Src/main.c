@@ -19,9 +19,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "decoder.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "decoder.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -178,7 +178,7 @@ int main(void)
   while (1)
   {
     MsgBuffer_print();
-    uint32_t now = HAL_GetTick();
+    const uint32_t now = HAL_GetTick();
     if (now - timeSinceLastClock > 1) {
     // Wipe everything we received if the last clock pulse received was 1ms or more in the past.
     // Normally clock period is 10us, and strobe follows within 20us, so this will do.
