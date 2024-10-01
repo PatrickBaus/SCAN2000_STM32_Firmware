@@ -156,9 +156,9 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART4_UART_Init();
-  MsgBuffer_Init();
   /* USER CODE BEGIN 2 */
   //__HAL_DMA_DISABLE_IT(huart4.hdmarx, DMA_IT_HT); // Disable Half Transfer Interrupt
+  MsgBuffer_Init();
   printf("\n===============\nBooting, SCAN2000-20 FW version " STR(VERSION) "\n");
   for (uint8_t i=0; i < 6; i++) {
     HAL_Delay(100); // sleep for 100 ms
@@ -224,6 +224,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK

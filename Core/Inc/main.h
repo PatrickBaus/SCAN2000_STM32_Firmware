@@ -117,6 +117,7 @@ void Error_Handler(void);
 #define CH9_GPIO_Port GPIOB
 #define CH10_Pin GPIO_PIN_8
 #define CH10_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 /* USER CODE END Private defines */
 
