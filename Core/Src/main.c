@@ -19,7 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "decoder.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
@@ -77,17 +77,12 @@ uint8_t uartsinglemessage[256], uartbuffer[2000], uartTransmitBuffer[2000];
 // Pin mapping of the output pins to the relays
 GPIO_TypeDef* GPIOsequence[] = {CH1_GPIO_Port, CH2_GPIO_Port, CH3_GPIO_Port, CH4_GPIO_Port, CH5_GPIO_Port, CH6_GPIO_Port, CH7_GPIO_Port, CH8_GPIO_Port, CH9_GPIO_Port, CH10_GPIO_Port, CH11_GPIO_Port, CH12_GPIO_Port, CH13_GPIO_Port, CH14_GPIO_Port, CH15_GPIO_Port, CH16_GPIO_Port, CH17_GPIO_Port, CH18_GPIO_Port, CH19_GPIO_Port, CH20_GPIO_Port};
 uint32_t PinSequence[] = {CH1_Pin, CH2_Pin, CH3_Pin, CH4_Pin, CH5_Pin, CH6_Pin, CH7_Pin, CH8_Pin, CH9_Pin, CH10_Pin, CH11_Pin, CH12_Pin, CH13_Pin, CH14_Pin, CH15_Pin, CH16_Pin, CH17_Pin, CH18_Pin, CH19_Pin, CH20_Pin};
-uint8_t scan2000_20ChannelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21, 22};    // CH11...CH20, CH1...CH10, Bank 2 to OUT, Bank 2 to 4W
 
 // channelState is 32 bit, and is organised in sequence: 0 = CH1 ... 19=CH20, 20 = 4W
 // The following bitmasks are for the channelState
 #define CHANNELSTATE_BITMASK_BANK1 0x003FF
 #define CHANNELSTATE_BITMASK_BANK2 0xFFC00
 #define CHANNELSTATE_BITMASK_4W 0x100000
-
-uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12};      // CH1...CH10, 4W
-uint8_t scan2000ChannelOnSequence[] = {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11};      // CH1...CH10, 4W
-
 
 // The interrupt handler IS NOT ALLOWED TO BLOCK. Therefore, we log messages in a buffer that we print from the main loop.
 struct msgInfo {
@@ -456,78 +451,6 @@ static void MsgBuffer_print(void) {
     UARTSendDMA();
     uartbuffer[0] = '\0';
   }
-}
-
-typedef enum decodeResult_t {decodeOK = 0, decodeIgnored, decodeDataError, decodeLengthError} decodeResult_t;
-
-/**
- * @brief Decode 10 channel command
- * @param command Command received
- * @param relaySetRegister ptr to bitmap for setting relays
- * @param relayUnsetRegister ptr to bitmap for unsetting relays
- * @return decodeResult_t
- */
-decodeResult_t decode_10channels(uint32_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
-    decodeResult_t rv;
-    // Check always high bits
-    if ((command & SCAN_2000_ALWAYS_HIGH_BITS) != SCAN_2000_ALWAYS_HIGH_BITS) {
-        return decodeDataError;
-    }
-    // Remove the bits, that are always high
-    command &= ~SCAN_2000_ALWAYS_HIGH_BITS;
-    *relaySetRegister = 0x0000;
-    *relayUnsetRegister = 0x0000;
-
-    // There is no need to run the loop, if there is nothing to do. Every second command
-    // only contains the bits, that are always high. We can ignore those commands.
-    if (command != 0x00000000) {
-        // 10 channels + 1 4W relay
-        for (uint8_t i = 0; i < 11; i++) {
-            // Compile a list of channels, that are to be turned on
-            // The scanner card supports up to 20 channels on two separate buses (CH1-CH10 and CH11-CH20),
-            // but the DMM might only support 10 channels.
-            // We therefore use channels CH1-CH5 and CH11-CH15 on the scanner card and skip CH6-CH10,
-            // because CH1-CH5 and CH6-CH10 are connected to the same bus. This is why we use the
-            // i + (i/5) * 5 term to skip CH6-CH10.
-            // The MSB is the 4W relay, the LSB is CH1
-
-            *relaySetRegister |= !!(command & (1 << scan2000ChannelOnSequence[i])) << (i + (i / 5) * 5);
-            // The list of channels, that are to tbe turned off
-            *relayUnsetRegister |= !!(command & (1 << scan2000ChannelOffSequence[i])) << (i + (i / 5) * 5);
-        }
-        rv = decodeOK;
-    } else {
-        rv = decodeIgnored;
-    }
-    // Always unset CH6-CH10 and CH-16-CH20
-    // There is no need to not set the relaySetRegister, because unsetting a relay takes precidence.
-    *relayUnsetRegister |= 0b11111000001111100000;
-
-    return rv;
-}
-
-/**
- * @brief Decode 20 channel command
- * 48 bits in, so we decode all, even when we do not use all
- * @param command Command received
- * @param relaySetRegister ptr to bitmap for setting relays
- * @param relayUnsetRegister ptr to bitmap for unsetting relays
- * @return decodeResult_t
- */
-decodeResult_t decode_20channels(const uint64_t command, uint32_t *relaySetRegister, uint32_t *relayUnsetRegister) {
-    *relaySetRegister = 0x0000;
-    *relayUnsetRegister = 0x0000;
-
-    // There is no need to run the loop, if there is nothing to do.
-    if (command != 0x00000000) {
-        // Process the channels (incl. CH21, 4W mode)
-        for (size_t i = 0; i < sizeof(scan2000_20ChannelSequence)/sizeof(scan2000_20ChannelSequence[0]); i++) {
-            *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even bits -> turn relays off
-            *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd bits -> turn relays on
-        }
-        return decodeOK;
-    }
-    return decodeIgnored;
 }
 
 bool validateRelayState(const uint32_t channelState) {
