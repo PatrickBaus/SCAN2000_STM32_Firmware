@@ -71,7 +71,7 @@ volatile uint32_t timeSinceLastClock = 0;
 // below are all maintained and used by the interrupt handler.
 uint64_t receivedSequence = 0;
 volatile uint8_t receivedCounter = 0; // also read by the main loop
-uint32_t channelState = 0;
+volatile uint32_t channelState = 0;
 uint8_t uartsinglemessage[256], uartbuffer[2000], uartTransmitBuffer[2000];
 
 // Pin mapping of the output pins to the relays
