@@ -132,6 +132,7 @@ extern int __io_putchar(int ch) __attribute__((weak));
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -207,6 +208,7 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage
   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -241,6 +243,8 @@ void SystemClock_Config(void)
 
 /**
   * @brief USART4 Initialization Function
+  * @param None
+  * @retval None
   */
 static void MX_USART4_UART_Init(void)
 {
@@ -283,7 +287,7 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
+  /* DMA1_chnel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
@@ -291,10 +295,14 @@ static void MX_DMA_Init(void)
 
 /**
   * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
   */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+/* USER CODE BEGIN MX_GPIO_Init_1 */
+/* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -367,6 +375,8 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
+/* USER CODE BEGIN MX_GPIO_Init_2 */
+/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
