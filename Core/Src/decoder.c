@@ -37,9 +37,9 @@ decodeResult_t decode_10channels(uint32_t command, uint32_t *relaySetRegister, u
             // i + (i/5) * 5 term to skip CH6-CH10.
             // The MSB is the 4W relay, the LSB is CH1
 
-            *relaySetRegister |= !!(command & (1 << scan2000ChannelOnSequence[i])) << (i + (i / 5) * 5);
+            *relaySetRegister |= (uint32_t)!!(command & (1lu << scan2000ChannelOnSequence[i])) << (i + (i / 5) * 5);
             // The list of channels, that are to tbe turned off
-            *relayUnsetRegister |= !!(command & (1 << scan2000ChannelOffSequence[i])) << (i + (i / 5) * 5);
+            *relayUnsetRegister |= (uint32_t)!!(command & (1lu << scan2000ChannelOffSequence[i])) << (i + (i / 5) * 5);
         }
         rv = decodeOK;
     } else {
@@ -68,8 +68,8 @@ decodeResult_t decode_20channels(const uint64_t command, uint32_t *relaySetRegis
     if (command != 0x00000000) {
         // Process the channels (incl. CH21, 4W mode)
         for (size_t i = 0; i < sizeof(scan2000_20ChannelSequence)/sizeof(scan2000_20ChannelSequence[0]); i++) {
-            *relayUnsetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1)));    // Even clock pulses -> turn relays off
-            *relaySetRegister |= command & (1 << (2 * (scan2000_20ChannelSequence[i] - 1) + 1));  // Odd clock pulses -> turn relays on
+            *relayUnsetRegister |= (uint32_t)!!(command & (1llu << (2 * (scan2000_20ChannelSequence[i] - 1)))) << i;    // Even bits -> turn relays off
+            *relaySetRegister |= (uint32_t)!!(command & (1llu << (2 * (scan2000_20ChannelSequence[i] - 1) + 1))) << i;  // Odd bits -> turn relays on
         }
         return decodeOK;
     }

@@ -19,9 +19,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "decoder.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "decoder.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -71,7 +71,7 @@ volatile uint32_t timeSinceLastClock = 0;
 // below are all maintained and used by the interrupt handler.
 uint64_t receivedSequence = 0;
 volatile uint8_t receivedCounter = 0; // also read by the main loop
-uint32_t channelState = 0;
+volatile uint32_t channelState = 0;
 uint8_t uartsinglemessage[256], uartbuffer[2000], uartTransmitBuffer[2000];
 
 // Pin mapping of the output pins to the relays
@@ -132,6 +132,7 @@ extern int __io_putchar(int ch) __attribute__((weak));
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -177,10 +178,10 @@ int main(void)
   while (1)
   {
     MsgBuffer_print();
-    uint32_t now = HAL_GetTick();
+    const uint32_t now = HAL_GetTick();
     if (now - timeSinceLastClock > 1) {
     // Wipe everything we received if the last clock pulse received was 1ms or more in the past.
-    // Normally clock period is 10us, and strobe follows within 20us, so this will do.
+    // Normally clock the period is 10us, and strobe follows within 20us, so this will do.
     // The handling of the clock and strobe, and the update of timeSinceLastClock
     // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
     // somewhat robust against concurrent access.
@@ -207,6 +208,7 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage
   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -241,6 +243,8 @@ void SystemClock_Config(void)
 
 /**
   * @brief USART4 Initialization Function
+  * @param None
+  * @retval None
   */
 static void MX_USART4_UART_Init(void)
 {
@@ -283,7 +287,7 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
+  /* DMA1_chnel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
@@ -291,10 +295,14 @@ static void MX_DMA_Init(void)
 
 /**
   * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
   */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+/* USER CODE BEGIN MX_GPIO_Init_1 */
+/* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -367,6 +375,8 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
+/* USER CODE BEGIN MX_GPIO_Init_2 */
+/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -594,9 +604,7 @@ PUTCHAR_PROTOTYPE
 {
   /* Place your implementation of fputc here */
   /* e.g. write a character to the USART1 and Loop until the end of transmission */
-  HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 1000);
-
-  return ch;
+  return HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 1000);
 }
 
 /* USER CODE END 4 */
@@ -632,4 +640,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
