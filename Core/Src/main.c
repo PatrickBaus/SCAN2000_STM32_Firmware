@@ -512,10 +512,11 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
 
     if (GPIO_Pin == Clock_Pin) {
         // Clock in a new bit
-        if (!receivedCounter)
+        if (!receivedCounter) {
             receivedSequence = 0x00;
-        else
+        } else {
             receivedSequence = receivedSequence << 1;
+        }
         receivedSequence |= HAL_GPIO_ReadPin(Data_GPIO_Port, Data_Pin);
         receivedCounter++;
         timeSinceLastClock = HAL_GetTick();
@@ -544,27 +545,29 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
             decodeResult = decodeLengthError;
         }
 
-        if ((decodeResult == decodeOK) || (decodeResult == decodeIgnored)) {
-            // Now apply the updates (can happen even when command is ignored, as we unset unwanted relays by default)
-            newChannelState |= relaySetRegister;    // closed channels
-            newChannelState &= ~relayUnsetRegister; // opened channels
-            if (decodeResult == decodeOK)
-                msg.state = msgOK;
-            else
-                msg.state = msgIgnored;
+        switch (decodeResult) {
+            case decodeOK:
+                // Now apply the updates
+                // We do not blindly apply the requested state, but rather test whether it is valid first to make sure
+                // we do damage neither the relays nor the DMM.
+                newChannelState |= relaySetRegister;    // closed channels
+                newChannelState &= ~relayUnsetRegister; // opened channels
 
-            // Test if the new state is valid and if so, apply it
-            if (validateRelayState(newChannelState)) {
-                setRelays(newChannelState);
-            } else {
-                msg.state = msgRelayError;
-            }
-        } else {
-            // very likely decodeResult == decodeXError
-            // Terminate here and signal an error
-            if (decodeResult == decodeDataError)
+                // Test if the new state is valid and if so, apply it
+                if (validateRelayState(newChannelState)) {
+                    setRelays(newChannelState);
+                    msg.state = msgOK;
+                } else {
+                    msg.state = msgRelayError;
+                }
+                break;
+            case decodeIgnored:
+                msg.state = msgIgnored;
+                break;
+            case decodeDataError:
                 msg.state = msgDataError;
-            else
+                break;
+            case decodeLengthError:
                 msg.state = msgLengthError;
         }
 
