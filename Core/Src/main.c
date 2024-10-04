@@ -178,17 +178,6 @@ int main(void)
   while (1)
   {
     MsgBuffer_print();
-    const uint32_t now = HAL_GetTick();
-    if (now - timeSinceLastClock > 1) {
-    // Wipe everything we received if the last clock pulse received was 1ms or more in the past.
-    // Normally clock the period is 10us, and strobe follows within 20us, so this will do.
-    // The handling of the clock and strobe, and the update of timeSinceLastClock
-    // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
-    // somewhat robust against concurrent access.
-        receivedCounter = 0;
-        receivedSequence = 0;
-        timeSinceLastClock = now;
-    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -511,9 +500,21 @@ void setRelays(const uint32_t newChannelState) {
 }
 
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
+    if (HAL_GetTick() - timeSinceLastClock > 1) {
+        // Wipe everything we received if the last clock pulse received was more than 2ms the past.
+        // Normally clock the period is 10us, and strobe follows within 20us, so this will do.
+        // The handling of the clock and strobe, and the update of timeSinceLastClock
+        // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
+        // somewhat robust against concurrent access.
+        receivedCounter = 0;
+    }
+
     if (GPIO_Pin == Clock_Pin) {
         // Clock in a new bit
-        receivedSequence = receivedSequence << 1;
+        if (!receivedCounter)
+            receivedSequence = 0x00;
+        else
+            receivedSequence = receivedSequence << 1;
         receivedSequence |= HAL_GPIO_ReadPin(Data_GPIO_Port, Data_Pin);
         receivedCounter++;
         timeSinceLastClock = HAL_GetTick();
