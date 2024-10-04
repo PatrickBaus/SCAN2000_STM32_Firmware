@@ -27,7 +27,8 @@ sudo apt install gcc-arm-none-eabi
 ```bash
 make
 ```
-Alternatively use the pre-compiled firware found [here](#compiled-binaries).
+Alternatively use the pre-compiled firmware found [here](#compiled-binaries).
+
 3. Power the MCU via the 5V pin. It should draw about 40 mA @ 5V and the *Power* led should be lit.
 4. Connect the ST-link programmer via the header provided on the PCB.
 5. Open *STM32CubeProgrammer* and press connect
@@ -46,7 +47,7 @@ sudo apt install gcc-arm-none-eabi stlink-tools
 ```bash
 make
 ```
-Alternatively use the pre-compiled firware found [here](#compiled-binaries).
+
 3. Power the MCU via the 5V pin. It should draw about 40 mA @ 5V and the *Power* led should be lit.
 4. Connect the ST-link programmer via the header provided on the PCB.
 5. Open a terminal and go to the source code folder. Type
