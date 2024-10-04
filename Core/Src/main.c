@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "decoder.h"
@@ -178,17 +179,6 @@ int main(void)
   while (1)
   {
     MsgBuffer_print();
-    const uint32_t now = HAL_GetTick();
-    if (now - timeSinceLastClock > 1) {
-    // Wipe everything we received if the last clock pulse received was 1ms or more in the past.
-    // Normally clock the period is 10us, and strobe follows within 20us, so this will do.
-    // The handling of the clock and strobe, and the update of timeSinceLastClock
-    // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
-    // somewhat robust against concurrent access.
-        receivedCounter = 0;
-        receivedSequence = 0;
-        timeSinceLastClock = now;
-    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -287,7 +277,7 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_chnel1_IRQn interrupt configuration */
+  /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
@@ -479,17 +469,19 @@ bool validateRelayState(const uint32_t channelState) {
 void setRelays(const uint32_t newChannelState) {
     // If we have a new state, update the relays
     if (newChannelState != channelState) {
+        const uint32_t resetChannels = ~newChannelState & channelState;  // Channels that need to be turned off
+        const uint32_t setChannels = ~channelState & newChannelState;  // Channels that need to be turned on
         channelState = newChannelState;
 
         // First disconnect all channels, that need to be disconnected
         for (size_t i=0; i<sizeof(PinSequence)/sizeof(PinSequence[0]); i++) {
-            if (!(channelState & (1 << i))) {
+            if (!(resetChannels & (1 << i))) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_RESET);
             }
         }
 
-        // If CH11-CH20 are turned off, disconnect them from the all buses to reduce the isolation capacitance
-        // else connect it either to the 4W output or the sense output
+        // If CH11-CH20 are turned off, disconnect them from all buses to reduce the isolation capacitance
+        // else connect the CH11-CH20 bus either to the 4W output or the normal sense output (DMM input)
         if (!(channelState & CHANNELSTATE_BITMASK_BANK2)) {
             HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, GPIO_PIN_RESET);
             HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, GPIO_PIN_RESET);
@@ -501,7 +493,7 @@ void setRelays(const uint32_t newChannelState) {
 
         // Finally connect all channels, that need to be connected
         for (size_t i=0; i<sizeof(PinSequence)/sizeof(PinSequence[0]); i++) {
-            if (channelState & (1 << i)) {
+            if (setChannels & (1 << i)) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_SET);
             }
         }
@@ -509,9 +501,22 @@ void setRelays(const uint32_t newChannelState) {
 }
 
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
+    if (HAL_GetTick() - timeSinceLastClock > 1) {
+        // Wipe everything we received if the last clock pulse received was more than 2ms the past.
+        // Normally clock the period is 10us, and strobe follows within 20us, so this will do.
+        // The handling of the clock and strobe, and the update of timeSinceLastClock
+        // is inside the interrupt handler (HAL_GPIO_EXTI_Rising_Callback), so the code here must be
+        // somewhat robust against concurrent access.
+        receivedCounter = 0;
+    }
+
     if (GPIO_Pin == Clock_Pin) {
         // Clock in a new bit
-        receivedSequence = receivedSequence << 1;
+        if (!receivedCounter) {
+            receivedSequence = 0x00;
+        } else {
+            receivedSequence = receivedSequence << 1;
+        }
         receivedSequence |= HAL_GPIO_ReadPin(Data_GPIO_Port, Data_Pin);
         receivedCounter++;
         timeSinceLastClock = HAL_GetTick();
@@ -540,27 +545,29 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
             decodeResult = decodeLengthError;
         }
 
-        if ((decodeResult == decodeOK) || (decodeResult == decodeIgnored)) {
-            // Now apply the updates (can happen even when command is ignored, as we unset unwanted relays by default)
-            newChannelState |= relaySetRegister;    // closed channels
-            newChannelState &= ~relayUnsetRegister; // opened channels
-            if (decodeResult == decodeOK)
-                msg.state = msgOK;
-            else
-                msg.state = msgIgnored;
+        switch (decodeResult) {
+            case decodeOK:
+                // Now apply the updates
+                // We do not blindly apply the requested state, but rather test whether it is valid first to make sure
+                // we do damage neither the relays nor the DMM.
+                newChannelState |= relaySetRegister;    // closed channels
+                newChannelState &= ~relayUnsetRegister; // opened channels
 
-            // Test if the new state is valid and if so, apply it
-            if (validateRelayState(newChannelState)) {
-                setRelays(newChannelState);
-            } else {
-                msg.state = msgRelayError;
-            }
-        } else {
-            // very likely decodeResult == decodeXError
-            // Terminate here and signal an error
-            if (decodeResult == decodeDataError)
+                // Test if the new state is valid and if so, apply it
+                if (validateRelayState(newChannelState)) {
+                    setRelays(newChannelState);
+                    msg.state = msgOK;
+                } else {
+                    msg.state = msgRelayError;
+                }
+                break;
+            case decodeIgnored:
+                msg.state = msgIgnored;
+                break;
+            case decodeDataError:
                 msg.state = msgDataError;
-            else
+                break;
+            case decodeLengthError:
                 msg.state = msgLengthError;
         }
 
