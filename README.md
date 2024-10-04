@@ -15,6 +15,8 @@ This repository contains the firmware for the Keithley SCAN2000 STM32 SSR replac
 The source code is based on the project by [George Christidis](https://github.com/macgeorge/SCAN2000STM32). It uses CubeMX instead and it makes use of the STM32 HAL labraries instead of the low-level libraries. It can be built using a Makefile.
 
 ## Installation
+Two options to upload the firmware are detailed below. One uses the STM32CubeProgrammer programmer with a GUI, the other uses the open souce toolkit [stlink](https://github.com/stlink-org/stlink) and does the upload via the command line. The latter is recommended and simpler to use when building the binaries from the sources, because both compiling and uploading can be done via the same Makefile script.
+
 ### STM32CubeProgrammer
 To flash the SMT32G0, I use an [ST-Link programmer](https://www.st.com/en/development-tools/st-link-v2.html) along with [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html).
 
@@ -55,6 +57,7 @@ make
 make upload
 ```
 The *Activity* led should now flash three times to signal a successful boot.
+
 6. Disconnect the ST-Link.
 7. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
 
