@@ -206,7 +206,10 @@ $(BUILD_DIR):
 #######################################
 clean:
 	-rm -fR $(BUILD_DIR)
-  
+.PHONY: upload
+upload: $(BUILD_DIR)/$(TARGET).bin
+	st-flash write $(BUILD_DIR)/$(TARGET).bin 0x8000000
+
 #######################################
 # dependencies
 #######################################
