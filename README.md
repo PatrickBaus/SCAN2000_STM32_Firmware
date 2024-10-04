@@ -15,38 +15,51 @@ This repository contains the firmware for the Keithley SCAN2000 STM32 SSR replac
 The source code is based on the project by [George Christidis](https://github.com/macgeorge/SCAN2000STM32). It uses CubeMX instead and it makes use of the STM32 HAL labraries instead of the low-level libraries. It can be built using a Makefile.
 
 ## Installation
+Two options to upload the firmware are detailed below. One uses the [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) programmer with a GUI and is provided by ST. The other option uses the open souce toolkit [stlink](https://github.com/stlink-org/stlink) and does the upload via the command line. The latter is recommended and simpler to use when building the binaries from the sources because both compiling and uploading can be done via the same Makefile script.
+
 ### STM32CubeProgrammer
 To flash the SMT32G0, I use an [ST-Link programmer](https://www.st.com/en/development-tools/st-link-v2.html) along with [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html).
 
 To flash the firmware to the microcontroller do the following:
-1. If you want to build the firmare from its sources, then you need the ```gcc-arm-none-eabi``` compiler. Using Ubuntu, this can be done via ```apt```.
+1. If you want to build the firmare from its sources, you will need the ```gcc-arm-none-eabi``` compiler. Using Ubuntu, this can be done via ```apt```.
 ```bash
 sudo apt install gcc-arm-none-eabi
 ```
-2. Compile the code using the Makefile. In Linux type ```make```. Alternatively use the pre-compiled firware found [here](#compiled-binaries).
+2. Open a terminal and go to the source code folder. Compile the code using the Makefile. In Linux type
+```bash
+make
+```
+Alternatively use the pre-compiled firmware found [here](#compiled-binaries).
+
 3. Power the MCU via the 5V pin. It should draw about 40 mA @ 5V and the *Power* led should be lit.
-4. Connect the ST-link programmer via the header and the adapter board.
+4. Connect the ST-link programmer via the header provided on the PCB.
 5. Open *STM32CubeProgrammer* and press connect
 6. Now open load the .hex file and press download. *STM32CubeProgrammer* should report success and the board current should now drop to < 10 mA.
 7. In the *STM32CubeProgrammer* window press disconnect. The board power typically increases by 1 mA.
-8. Disconnect the ST-Link
-9. Reset the MCU. The *Activity* led should flash three times to signal a successful boot. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
+8. Disconnect the ST-Link.
+9. Reset the MCU. The *Activity* led now should flash three times to signal a successful boot. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
 
 ### stlink
 Alternatively, you can use the open souce toolkit [stlink](https://github.com/stlink-org/stlink) which also requires the [ST-Link programmer](https://www.st.com/en/development-tools/st-link-v2.html), but programming can be done from the CLI.
-1. If you want to build the firmare from its sources, then you need the ```gcc-arm-none-eabi``` compiler. Using Ubuntu, this can be done via ```apt```.
+1. If you want to build the firmare from its sources, you will need the ```gcc-arm-none-eabi``` compiler. Using Ubuntu, this can be done via ```apt```.
 ```bash
-sudo apt install gcc-arm-none-eabi
+sudo apt install gcc-arm-none-eabi stlink-tools
 ```
-2. Compile the code using the Makefile. In Linux type ```make```. Alternatively use the pre-compiled firware found [here](#compiled-binaries).
+2. Open a terminal and go to the source code folder. Compile the code using the Makefile. In Linux type
+```bash
+make
+```
+
 3. Power the MCU via the 5V pin. It should draw about 40 mA @ 5V and the *Power* led should be lit.
-4. Connect the ST-link programmer via the header and the adapter board.
-5. Open a terminal and go to the folder where the ```Scan2000STM32.bin``` file is located, then type
+4. Connect the ST-link programmer via the header provided on the PCB.
+5. Open a terminal and go to the source code folder. Type
 ```bash
-st-flash write Scan2000STM32.bin 0x8000000
+make upload
 ```
-6. Disconnect the ST-Link
-7. Reset the MCU. The *Activity* led should flash three times to signal a successful boot. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
+The *Activity* led should now flash three times to signal a successful boot.
+
+6. Disconnect the ST-Link.
+7. The board should now draw about 13-15 mA during idle and only the power LED should be lit.
 
 ## Compiled Binaries
 A compiled version can be found on the the [releases](../../releases) page.
