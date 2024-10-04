@@ -479,11 +479,13 @@ bool validateRelayState(const uint32_t channelState) {
 void setRelays(const uint32_t newChannelState) {
     // If we have a new state, update the relays
     if (newChannelState != channelState) {
+        const uint32_t resetChannels = ~newChannelState & channelState;  // Channels that need to be turned off
+        const uint32_t setChannels = ~channelState & newChannelState;  // Channels that need to be turned on
         channelState = newChannelState;
 
         // First disconnect all channels, that need to be disconnected
         for (size_t i=0; i<sizeof(PinSequence)/sizeof(PinSequence[0]); i++) {
-            if (!(channelState & (1 << i))) {
+            if (!(resetChannels & (1 << i))) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_RESET);
             }
         }
@@ -501,7 +503,7 @@ void setRelays(const uint32_t newChannelState) {
 
         // Finally connect all channels, that need to be connected
         for (size_t i=0; i<sizeof(PinSequence)/sizeof(PinSequence[0]); i++) {
-            if (channelState & (1 << i)) {
+            if (setChannels & (1 << i)) {
                 HAL_GPIO_WritePin(GPIOsequence[i], PinSequence[i], GPIO_PIN_SET);
             }
         }
