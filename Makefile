@@ -23,7 +23,7 @@ DEBUG = 0
 # optimization
 OPT = -O3
 
-LOGLEVEL = 3  # Warning, 1 = debug, 2 = info
+LOGLEVEL = 3  # 1 = debug, 2 = info, 3 = Warning
 
 # Create a version string from the Git commit
 # Taken from: https://eugene-babichenko.github.io/blog/2019/09/28/nightly-versions-makefiles/

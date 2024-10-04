@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "decoder.h"
@@ -276,7 +277,7 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_chnel1_IRQn interrupt configuration */
+  /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
@@ -479,8 +480,8 @@ void setRelays(const uint32_t newChannelState) {
             }
         }
 
-        // If CH11-CH20 are turned off, disconnect them from the all buses to reduce the isolation capacitance
-        // else connect it either to the 4W output or the sense output
+        // If CH11-CH20 are turned off, disconnect them from all buses to reduce the isolation capacitance
+        // else connect the CH11-CH20 bus either to the 4W output or the normal sense output (DMM input)
         if (!(channelState & CHANNELSTATE_BITMASK_BANK2)) {
             HAL_GPIO_WritePin(Bus_Sense_GPIO_Port, Bus_Sense_Pin, GPIO_PIN_RESET);
             HAL_GPIO_WritePin(Bus_In_GPIO_Port, Bus_In_Pin, GPIO_PIN_RESET);
