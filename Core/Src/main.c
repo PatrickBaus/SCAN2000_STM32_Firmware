@@ -501,6 +501,11 @@ void setRelays(const uint32_t newChannelState) {
 }
 
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
+    // Sampling the data on rising clocks does not work with the K2002
+    // It has a clock of 2 MHz, so the bit is valid for 250 ns.
+    // According to https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/beginner-guide-on-interrupt-latency-and-interrupt-latency-of-the-arm-cortex-m-processors
+    // the STM32G070KBT6 (Cortex M0+) has a latency of 16 cycles.
+    // At a maximum clock of 64 MHz, this is a latency of 250 ns.
     if (HAL_GetTick() - timeSinceLastClock > 1) {
         // Wipe everything we received if the last clock pulse received was more than 2ms the past.
         // Normally clock the period is 10us, and strobe follows within 20us, so this will do.

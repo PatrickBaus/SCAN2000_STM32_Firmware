@@ -1,6 +1,6 @@
 [![Build firmware](https://github.com/PatrickBaus/SCAN2000_Firmware/actions/workflows/ci.yml/badge.svg)](https://github.com/PatrickBaus/SCAN2000_Firmware/actions/workflows/ci.yml)
 # Keithley SCAN2000 STM32 SSR Replacement Firmware
-This repository contains the firmware for the Keithley SCAN2000 STM32 SSR replacement PCB found [here](https://github.com/PatrickBaus/SCAN2000/tree/1.1.1). Do note, this firmware only works with the 1.x revision of the PCB that uses an STM32 microcontroller.
+This repository contains the firmware for the Keithley SCAN2000 STM32 SSR replacement PCB found [here](https://github.com/PatrickBaus/SCAN2000/tree/v1). Do note, this firmware only works with the 1.x revision of the PCB that uses an STM32 microcontroller.
 
 ## Contents
 - [Description](#description)
@@ -76,7 +76,7 @@ stty -F /dev/ttyUSB5 115200 cs8 -cstopb -parenb echo -echoe -echok -echoctl -ign
 ## Related Repositories
 See the following repositories for more information
 
-Keithley SCAN2000 Hardware: https://github.com/PatrickBaus/SCAN2000/tree/1.1.1
+Keithley SCAN2000 Hardware 1.x: https://github.com/PatrickBaus/SCAN2000/tree/v1
 
 ## Versioning
 I use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags](../../tags) available for this repository.
