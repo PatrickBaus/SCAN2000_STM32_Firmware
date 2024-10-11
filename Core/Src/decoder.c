@@ -4,7 +4,7 @@
 const uint8_t scan2000ChannelOffSequence[] = {17, 19, 21, 23, 8, 14, 0, 2, 4, 5, 12};      // CH1...CH10, 4W
 const uint8_t scan2000ChannelOnSequence[] =  {16, 18, 20, 22, 9, 13, 15, 1, 3, 6, 11};      // CH1...CH10, 4W
 
-const uint8_t scan2000_20ChannelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21, 22};    // CH11...CH20, CH1...CH10, Bank 2 to OUT, Bank 2 to 4W
+const uint8_t scan2000_20ChannelSequence[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7 , 8, 9, 10, 21};    // CH11...CH20, CH1...CH10, bank 2 to 4W
 
 /**
  * @brief Decode 10 channel command
